@@ -8,21 +8,49 @@ const requireRole = require('../middleware/admin');
 
 const router = express.Router();
 
+// Map setting keys to their env var names
 const ENV_KEY_MAP = {
+  app_name:        'APP_NAME',
+  bind_host:       'BIND_HOST',
   check_interval:  'CHECK_INTERVAL',
   check_enabled:   'CHECK_ENABLED',
   check_timeout:   'CHECK_TIMEOUT',
   max_users:       'MAX_USERS',
   session_timeout: 'SESSION_TIMEOUT',
+  network_mode:    'NETWORK_MODE',
+  theme_default:   'THEME_DEFAULT',
 };
 
-function isLockedByEnv(key) {
+// Map setting keys to their seed defaults (fallback when no env or DB override)
+const SEED_DEFAULTS = {
+  app_name:        'Subnet Manager',
+  bind_host:       '0.0.0.0',
+  check_interval:  '60',
+  check_enabled:   'true',
+  check_timeout:   '2000',
+  max_users:       '0',
+  session_timeout: '3600',
+  network_mode:    'bridge',
+  theme_default:   'dark',
+};
+
+function getEnvValue(key) {
   const envKey = ENV_KEY_MAP[key] || key.toUpperCase();
-  return envKey in process.env;
+  return (envKey in process.env) ? process.env[envKey] : null;
 }
 
-const listSettings = db.prepare('SELECT * FROM settings ORDER BY key ASC');
-const getSetting   = db.prepare('SELECT * FROM settings WHERE key = ?');
+function enrichSetting(row) {
+  const envValue = getEnvValue(row.key);
+  return {
+    ...row,
+    env_value:        envValue,                         // null if not set via env
+    from_env:         envValue !== null && row.value === envValue, // currently using env value
+    has_env:          envValue !== null,                // env var exists
+  };
+}
+
+const listSettings  = db.prepare('SELECT * FROM settings ORDER BY key ASC');
+const getSetting    = db.prepare('SELECT * FROM settings WHERE key = ?');
 const upsertSetting = db.prepare(`
   INSERT INTO settings (key, value, updated_at)
   VALUES (?, ?, datetime('now'))
@@ -30,42 +58,41 @@ const upsertSetting = db.prepare(`
 `);
 
 router.get('/', requireAuth, (req, res) => {
-  const rows = listSettings.all();
-  const result = rows.map(r => ({
-    ...r,
-    locked: isLockedByEnv(r.key),
-  }));
-  res.json(result);
+  res.json(listSettings.all().map(enrichSetting));
 });
 
 router.get('/:key', requireAuth, (req, res) => {
   const row = getSetting.get(req.params.key);
   if (!row) return res.status(404).json({ error: 'Setting not found' });
-  res.json({ ...row, locked: isLockedByEnv(row.key) });
+  res.json(enrichSetting(row));
 });
 
 router.put('/:key', requireAuth, requireRole('admin'), (req, res) => {
-  const { key } = req.params;
+  const { key }   = req.params;
   const { value } = req.body || {};
-
-  if (value === undefined) {
-    return res.status(400).json({ error: 'value is required' });
-  }
-
-  if (isLockedByEnv(key)) {
-    return res.status(403).json({ error: 'This setting is locked by an environment variable' });
-  }
+  if (value === undefined) return res.status(400).json({ error: 'value is required' });
 
   const existing = getSetting.get(key);
   upsertSetting.run(key, String(value));
-  const updated = getSetting.get(key);
-
   audit(req.user, 'update', 'setting', key, {
     before: existing ? existing.value : null,
-    after: String(value),
+    after:  String(value),
   });
+  res.json(enrichSetting(getSetting.get(key)));
+});
 
-  res.json(updated);
+// Reset a setting to its env value (or seed default if no env var)
+router.delete('/:key/override', requireAuth, requireRole('admin'), (req, res) => {
+  const { key } = req.params;
+  const resetTo = getEnvValue(key) ?? SEED_DEFAULTS[key] ?? '';
+  const existing = getSetting.get(key);
+  upsertSetting.run(key, resetTo);
+  audit(req.user, 'update', 'setting', key, {
+    before: existing ? existing.value : null,
+    after:  resetTo,
+    note:   'reset to env/default',
+  });
+  res.json(enrichSetting(getSetting.get(key)));
 });
 
 // Bulk update
@@ -74,7 +101,6 @@ router.put('/', requireAuth, requireRole('admin'), (req, res) => {
   const results = {};
   const bulkUpdate = db.transaction(() => {
     for (const [key, value] of Object.entries(updates)) {
-      if (isLockedByEnv(key)) continue;
       upsertSetting.run(key, String(value));
       audit(req.user, 'update', 'setting', key, { after: String(value) });
       results[key] = String(value);

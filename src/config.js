@@ -7,6 +7,15 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+function parseExpiryMs(str) {
+  const n = parseInt(str, 10);
+  if (!n) return 7 * 86400000;
+  if (str.endsWith('d')) return n * 86400000;
+  if (str.endsWith('h')) return n * 3600000;
+  if (str.endsWith('m')) return n * 60000;
+  return n * 1000;
+}
+
 let mcpToken = process.env.MCP_TOKEN;
 if (!mcpToken) {
   mcpToken = crypto.randomUUID();
@@ -20,8 +29,9 @@ const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
 
-  JWT_SECRET: process.env.JWT_SECRET,
-  JWT_EXPIRY: process.env.JWT_EXPIRY || '7d',
+  JWT_SECRET:    process.env.JWT_SECRET,
+  JWT_EXPIRY:    process.env.JWT_EXPIRY || '7d',
+  JWT_EXPIRY_MS: parseExpiryMs(process.env.JWT_EXPIRY || '7d'),
 
   MCP_TOKEN: mcpToken,
 

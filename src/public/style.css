@@ -22,15 +22,91 @@
 }
 
 body.light {
-  --bg:       #f4f4f5;
+  --bg:       #f1f5f9;
   --card:     #ffffff;
-  --card2:    #f9f9fa;
-  --border:   #e4e4e7;
-  --text:     #18181b;
-  --text2:    #3f3f46;
-  --muted:    #71717a;
-  --unknown:  #ccc;
-  --shadow:   0 1px 3px rgba(0,0,0,.1);
+  --card2:    #f8fafc;
+  --border:   #e2e8f0;
+  --text:     #0f172a;
+  --text2:    #334155;
+  --muted:    #64748b;
+  --online:   #16a34a;
+  --offline:  #dc2626;
+  --unknown:  #94a3b8;
+  --accent:   #2563eb;
+  --accent2:  #1d4ed8;
+  --danger:   #dc2626;
+  --warn:     #d97706;
+  --shadow:   0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.06);
+}
+
+/* Light mode component overrides */
+body.light #topbar {
+  background: #ffffff;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+body.light .subnet-card {
+  box-shadow: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.05);
+}
+
+body.light .subnet-card:hover {
+  box-shadow: 0 4px 12px rgba(15,23,42,.1);
+  transform: translateY(-1px);
+  transition: box-shadow .2s, transform .2s;
+}
+
+body.light .stat-card {
+  box-shadow: 0 1px 3px rgba(15,23,42,.07);
+}
+
+body.light .modal {
+  box-shadow: 0 8px 32px rgba(15,23,42,.18);
+}
+
+body.light #settings-panel {
+  box-shadow: -4px 0 24px rgba(15,23,42,.12);
+}
+
+body.light input,
+body.light select,
+body.light textarea {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+body.light input:focus,
+body.light select:focus,
+body.light textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+body.light .btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+body.light .btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: var(--accent);
+}
+
+body.light .host-row:hover {
+  background: #f1f5f9;
+}
+
+body.light .status-dot.online {
+  box-shadow: 0 0 5px var(--online);
+}
+
+body.light .token-box {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+body.light .add-subnet-card:hover {
+  background: rgba(37,99,235,.04);
 }
 
 /* ── Body ──────────────────────────────────────────────────────────────────── */
@@ -572,6 +648,45 @@ textarea { resize: vertical; min-height: 80px; }
   margin-left: 6px;
 }
 
+.env-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(59,130,246,.1);
+  border: 1px solid rgba(59,130,246,.25);
+  color: var(--accent);
+  margin-left: 6px;
+  font-family: ui-monospace, monospace;
+}
+
+.reset-btn {
+  font-size: 11px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  margin-left: 6px;
+  transition: color .15s, border-color .15s;
+}
+.reset-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.setting-row input,
+.setting-row select {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .error-msg {
   color: var(--danger);
   font-size: 12px;
@@ -803,7 +918,7 @@ textarea { resize: vertical; min-height: 80px; }
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 16px;
+  padding: 10px 14px 10px 38px;
   font-size: 13px;
   box-shadow: var(--shadow);
   pointer-events: auto;
@@ -811,11 +926,24 @@ textarea { resize: vertical; min-height: 80px; }
   transform: translateY(8px);
   transition: opacity .2s, transform .2s;
   max-width: 320px;
+  position: relative;
 }
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.success { border-left: 3px solid var(--online); }
-.toast.error   { border-left: 3px solid var(--offline); }
-.toast.info    { border-left: 3px solid var(--accent); }
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.toast.show      { opacity: 1; transform: translateY(0); }
+.toast.success   { background: color-mix(in srgb, var(--online) 8%, var(--card)); }
+.toast.success::before { background: var(--online); box-shadow: 0 0 4px var(--online); }
+.toast.error     { background: color-mix(in srgb, var(--offline) 8%, var(--card)); }
+.toast.error::before   { background: var(--offline); }
+.toast.info::before    { background: var(--accent); }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
@@ -835,6 +963,14 @@ textarea { resize: vertical; min-height: 80px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Confirm dialog ────────────────────────────────────────────────────────── */
+.confirm-message {
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.6;
+  padding: 4px 0 20px;
+}
 
 /* ── Add subnet button row ─────────────────────────────────────────────────── */
 .add-subnet-card {

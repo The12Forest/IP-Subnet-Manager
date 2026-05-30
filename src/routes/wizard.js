@@ -85,7 +85,7 @@ router.post('/complete', (req, res) => {
       httpOnly: true,
       sameSite: 'lax',
       secure: config.HTTPS_MODE !== 'off',
-      maxAge: config.SESSION_TIMEOUT * 1000,
+      maxAge: config.JWT_EXPIRY_MS,
     });
 
     res.json({ ok: true });

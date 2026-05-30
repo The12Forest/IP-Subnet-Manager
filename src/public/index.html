@@ -173,25 +173,51 @@
       <div class="panel-section">
         <h4>Application</h4>
         <div class="form-group">
-          <label>App Name</label>
-          <input type="text" id="set-app-name" placeholder="Subnet Manager">
+          <label id="label-app-name">App Name</label>
+          <div class="setting-row">
+            <input type="text" id="set-app-name" placeholder="Subnet Manager">
+          </div>
         </div>
         <div class="form-group">
-          <label>Bind Host <span class="muted">(requires restart)</span></label>
-          <input type="text" id="set-bind-host" placeholder="0.0.0.0">
-          <span class="hint">0.0.0.0 = all interfaces, 127.0.0.1 = localhost only</span>
+          <label id="label-bind-host">Bind Host <span class="muted">(requires restart)</span></label>
+          <div class="setting-row">
+            <input type="text" id="set-bind-host" placeholder="0.0.0.0">
+          </div>
+          <span class="hint">0.0.0.0 = all interfaces · 127.0.0.1 = localhost only</span>
+        </div>
+        <div class="form-group">
+          <label id="label-theme-default">Default Theme</label>
+          <div class="setting-row">
+            <select id="set-theme-default">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveGeneral()">Save</button>
       </div>
       <div class="panel-section">
-        <h4>Export</h4>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <h4>Security</h4>
+        <div class="form-group">
+          <label id="label-max-users">Max User Accounts <span class="muted">(0 = unlimited)</span></label>
+          <div class="setting-row">
+            <input type="number" id="set-max-users" min="0" placeholder="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="label-session-timeout">Session Timeout (seconds)</label>
+          <div class="setting-row">
+            <input type="number" id="set-session-timeout" min="60" placeholder="3600">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveSecurity()">Save</button>
+      </div>
+      <div class="panel-section">
+        <h4>Export &amp; Import</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <a class="btn btn-secondary btn-sm" href="/api/v1/export/json" download>Export JSON</a>
           <a class="btn btn-secondary btn-sm" href="/api/v1/export/markdown" download>Export Markdown</a>
         </div>
-      </div>
-      <div class="panel-section">
-        <h4>Import</h4>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="SettingsPanel.importJSON(this)">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">Import JSON…</button>
       </div>
@@ -202,12 +228,16 @@
       <div class="panel-section">
         <h4>Status Checks</h4>
         <div class="form-group">
-          <label>Check Interval (seconds)</label>
-          <input type="number" id="set-check-interval" min="10" max="3600">
+          <label id="label-check-interval">Check Interval (seconds)</label>
+          <div class="setting-row">
+            <input type="number" id="set-check-interval" min="10" max="3600">
+          </div>
         </div>
         <div class="form-group">
-          <label>Timeout (milliseconds)</label>
-          <input type="number" id="set-check-timeout" min="500" max="10000">
+          <label id="label-check-timeout">Timeout (milliseconds)</label>
+          <div class="setting-row">
+            <input type="number" id="set-check-timeout" min="500" max="10000">
+          </div>
         </div>
         <div class="toggle-group">
           <span>Enable background checks</span>
@@ -217,6 +247,21 @@
           </label>
         </div>
         <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="SettingsPanel.saveNetwork()">Save</button>
+      </div>
+      <div class="panel-section">
+        <h4>Network</h4>
+        <div class="form-group">
+          <label id="label-network-mode">Network Mode <span class="muted">(label only)</span></label>
+          <div class="setting-row">
+            <select id="set-network-mode">
+              <option value="bridge">bridge</option>
+              <option value="macvlan">macvlan</option>
+              <option value="ipvlan">ipvlan</option>
+              <option value="host">host</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveNetworkMode()">Save</button>
       </div>
     </div>
 

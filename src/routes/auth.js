@@ -40,7 +40,7 @@ router.post('/login', (req, res) => {
     httpOnly: true,
     sameSite: 'lax',
     secure: config.HTTPS_MODE !== 'off',
-    maxAge: config.SESSION_TIMEOUT * 1000,
+    maxAge: config.JWT_EXPIRY_MS,
   });
 
   audit({ id: user.id, username: user.username }, 'login', 'user', user.id, {});

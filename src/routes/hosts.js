@@ -12,6 +12,7 @@ const router = express.Router({ mergeParams: true });
 const getSubnet    = db.prepare('SELECT * FROM subnets WHERE id = ?');
 const listHosts    = db.prepare('SELECT * FROM hosts WHERE subnet_id = ? ORDER BY ip ASC');
 const usedIPs      = db.prepare('SELECT ip FROM hosts WHERE subnet_id = ?');
+const serverIPs    = db.prepare("SELECT ip FROM hosts WHERE subnet_id = ? AND type = 'server'");
 const getHostById  = db.prepare('SELECT * FROM hosts WHERE id = ?');
 const getHostByIP  = db.prepare('SELECT * FROM hosts WHERE ip = ?');
 const insertHost   = db.prepare(`
@@ -31,11 +32,18 @@ router.get('/', requireAuth, (req, res) => {
   const subnet = getSubnet.get(subnetId);
   if (!subnet) return res.status(404).json({ error: 'Subnet not found' });
 
-  const hosts = listHosts.all(subnetId);
-  const used  = usedIPs.all(subnetId).map(r => r.ip);
-  const free  = getFreeIPs(subnet.network, subnet.cidr, used);
+  const hosts     = listHosts.all(subnetId);
+  const used      = usedIPs.all(subnetId).map(r => r.ip);
+  const servers   = new Set(serverIPs.all(subnetId).map(r => r.ip));
+  const free      = getFreeIPs(subnet.network, subnet.cidr, used);
+  // Exclude server IPs from the clickable free-IP list (they're the host machine)
+  const freeForContainers = free.filter(ip => !servers.has(ip));
 
-  res.json({ hosts, free_ips: free.slice(0, 50) });
+  res.json({
+    hosts,
+    free_ips:   freeForContainers.slice(0, 50),
+    free_count: free.length,
+  });
 });
 
 // POST /api/v1/subnets/:subnetId/hosts

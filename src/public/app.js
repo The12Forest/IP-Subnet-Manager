@@ -93,6 +93,8 @@ const App = {
   },
 
   async logout() {
+    const ok = await App.confirm('Sign out of Subnet Manager?', { confirmLabel: 'Sign out' });
+    if (!ok) return;
     await fetch('/api/v1/auth/logout', { method: 'POST' });
     App.user = null;
     if (App.eventSource) {
@@ -129,7 +131,7 @@ const App = {
       const d = App.hosts[s.id];
       if (d) {
         services  += d.hosts.length;
-        freeTotal += (d.free_ips || []).length;
+        freeTotal += d.free_count !== undefined ? d.free_count : (d.free_ips || []).length;
       }
     }
 
@@ -296,7 +298,30 @@ const App = {
   closeModal(e) {
     if (!e || e.target === document.getElementById('modal-overlay')) {
       document.getElementById('modal-overlay').classList.add('hidden');
+      if (App._confirmReject) { App._confirmReject(); App._confirmReject = null; }
     }
+  },
+
+  confirm(message, { confirmLabel = 'Confirm', danger = false } = {}) {
+    return new Promise((resolve) => {
+      App._confirmReject = () => resolve(false);
+      App.openModal(`
+        <div class="modal-header">
+          <h3>Confirm</h3>
+          <button class="modal-close" onclick="App._confirmReject()">×</button>
+        </div>
+        <p class="confirm-message">${message}</p>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="App._confirmReject()">Cancel</button>
+          <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="confirm-ok-btn">${confirmLabel}</button>
+        </div>
+      `);
+      document.getElementById('confirm-ok-btn').onclick = () => {
+        App._confirmReject = null;
+        App.closeModal();
+        resolve(true);
+      };
+    });
   },
 
   // Add subnet
@@ -419,7 +444,11 @@ const App = {
 
   async deleteSubnet(id) {
     const s = App.subnets.find(s => s.id === id);
-    if (!confirm(`Delete subnet "${s ? s.name : id}" and all its hosts?`)) return;
+    const ok = await App.confirm(
+      `Delete <b>${App.esc(s ? s.name : id)}</b> and all its hosts? This cannot be undone.`,
+      { confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
     const res = await fetch(`/api/v1/subnets/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       const d = await res.json();
