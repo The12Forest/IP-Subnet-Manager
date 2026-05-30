@@ -1,9 +1,18 @@
 const express = require('express');
+const cors = require('cors');
 const crypto = require('crypto');
 const mcpAuth = require('../middleware/mcp-auth');
 const db = require('../db');
 
 const mcpApp = express();
+
+// Enable CORS for Claude web
+mcpApp.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 mcpApp.use(express.json());
 
 // State for active SSE sessions
@@ -13,13 +22,14 @@ let sessions = new Map();
 
 // Claude web might try to "Authorize" first
 mcpApp.get('/authorize', (req, res) => {
-    // Redirect back with a dummy code
     const redirectUri = req.query.redirect_uri;
     const state = req.query.state;
+    console.log(`[MCP] Authorize request. Redirecting to: ${redirectUri}`);
+    
     if (redirectUri) {
         const url = new URL(redirectUri);
         url.searchParams.set('code', 'dummy-code');
-        url.searchParams.set('state', state);
+        if (state) url.searchParams.set('state', state);
         return res.redirect(url.toString());
     }
     res.status(200).send('Subnet Manager MCP Authorization - Please use your MCP Token.');
@@ -27,6 +37,7 @@ mcpApp.get('/authorize', (req, res) => {
 
 // Claude web might try to exchange the code for a token
 mcpApp.post('/token', (req, res) => {
+    console.log('[MCP] Token exchange request');
     res.json({
         access_token: require('../config').mcpToken,
         token_type: 'Bearer',

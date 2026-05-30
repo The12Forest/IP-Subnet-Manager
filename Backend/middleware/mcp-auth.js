@@ -1,26 +1,38 @@
 const crypto = require('crypto');
 
 const mcpAuth = (req, res, next) => {
-    // This token is generated on startup if not provided in config.
     const config = require('../config'); 
     
     if (!config.mcpToken) {
-        console.warn('MCP authentication is disabled because no token is configured.');
         return res.status(503).json({ error: 'MCP server is not configured with a token.' });
     }
 
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('[MCP] Missing or malformed Authorization header');
         return res.status(401).json({ error: 'Authorization header in the format "Bearer <token>" is required.' });
     }
 
-    const token = authHeader.split(' ')[1];
+    const providedToken = authHeader.split(' ')[1];
+    const actualToken = config.mcpToken;
     
-    // Use a constant-time comparison to prevent timing attacks
-    const a = Buffer.from(token);
-    const b = Buffer.from(config.mcpToken);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    // timingSafeEqual requires buffers of the same length.
+    // We check length first to avoid an error.
+    if (providedToken.length !== actualToken.length) {
+        console.warn('[MCP] Invalid token length provided');
         return res.status(403).json({ error: 'Invalid MCP token.' });
+    }
+
+    try {
+        const a = Buffer.from(providedToken);
+        const b = Buffer.from(actualToken);
+        if (!crypto.timingSafeEqual(a, b)) {
+            console.warn('[MCP] Token mismatch');
+            return res.status(403).json({ error: 'Invalid MCP token.' });
+        }
+    } catch (err) {
+        console.error('[MCP] Auth error:', err.message);
+        return res.status(403).json({ error: 'Authorization failed.' });
     }
 
     next();
