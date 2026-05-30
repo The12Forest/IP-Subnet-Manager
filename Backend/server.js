@@ -18,9 +18,9 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// API Routes (to be added)
-// app.use('/api/v1/auth', require('./routes/auth'));
-// ...
+// API Routes
+app.use('/api/v1/setup', require('./routes/setup'));
+app.use('/api/v1/auth', require('./routes/auth'));
 
 // Serve Frontend
 const frontendPath = path.resolve(__dirname, '../Frontend');
