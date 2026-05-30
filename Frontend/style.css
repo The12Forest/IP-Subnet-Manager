@@ -90,6 +90,46 @@ input[type="search"], input[type="text"], input[type="password"] {
     transition: background-color 0.2s, border-color 0.2s;
 }
 
+.subnet-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.subnet-card .network-range {
+    font-family: var(--font-mono);
+    color: var(--text-muted-color);
+    font-size: 0.9rem;
+}
+
+.host-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.host-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.host-row:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+.host-row .host-name {
+    color: var(--text-muted-color);
+}
+
+
 .status-dot {
     width: 10px;
     height: 10px;

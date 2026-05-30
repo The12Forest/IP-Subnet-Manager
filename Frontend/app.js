@@ -51,10 +51,73 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('login-modal').style.display = 'none';
             const userMenu = document.getElementById('user-menu');
             userMenu.style.display = 'flex';
-            document.getElementById('current-user').textContent = this.state.user.username;
+            if (this.state.user) {
+                document.getElementById('current-user').textContent = this.state.user.username;
+            }
+            this.fetchAndRenderDashboard();
+        },
+
+        async fetchAndRenderDashboard() {
+            try {
+                const subnetsRes = await fetch('/api/v1/subnets');
+                if (!subnetsRes.ok) throw new Error('Failed to fetch subnets');
+                this.state.subnets = await subnetsRes.json();
+
+                const hostPromises = this.state.subnets.map(subnet => 
+                    fetch(`/api/v1/subnets/${subnet.id}/hosts`).then(res => {
+                        if (!res.ok) throw new Error(`Failed to fetch hosts for subnet ${subnet.id}`);
+                        return res.json();
+                    })
+                );
+                
+                const hostsBySubnet = await Promise.all(hostPromises);
+                
+                this.state.hosts = {}; // Clear previous host state
+                this.state.subnets.forEach((subnet, index) => {
+                    this.state.hosts[subnet.id] = hostsBySubnet[index];
+                });
+
+                this.renderDashboard();
+            } catch (error) {
+                console.error('Error fetching dashboard data:', error);
+                document.getElementById('subnet-grid').innerHTML = `<p>Error loading data. Is the server running?</p>`;
+            }
+        },
+
+        renderDashboard() {
+            const grid = document.getElementById('subnet-grid');
+            if (!grid) return;
             
-            // TODO: Fetch subnets and hosts and render them
-            console.log('User is authenticated, showing dashboard.');
+            if (this.state.subnets.length === 0) {
+                grid.innerHTML = '<div class="card"><p>No subnets have been created yet.</p></div>';
+                return;
+            }
+
+            grid.innerHTML = this.state.subnets.map(subnet => {
+                const hosts = this.state.hosts[subnet.id] || [];
+                const subnetColorDot = subnet.color ? `<span class="subnet-color-dot" style="background-color: ${subnet.color};"></span>` : '';
+                
+                return `
+                    <div class="card subnet-card" data-subnet-id="${subnet.id}">
+                        <div class="card-header">
+                            <div class="card-title">
+                                ${subnetColorDot}
+                                <h2>${subnet.name}</h2>
+                            </div>
+                            <span class="network-range">${subnet.network}/${subnet.cidr}</span>
+                        </div>
+                        <div class="host-list">
+                            ${hosts.map(host => `
+                                <div class="host-row" data-host-id="${host.id}">
+                                    <span class="status-dot ${host.last_status || 'unknown'}"></span>
+                                    <span class="ip-address">${host.ip}</span>
+                                    <span class="host-name">${host.name || ''}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
         },
 
         showLogin() {
