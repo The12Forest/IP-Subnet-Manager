@@ -122,6 +122,12 @@ const startServer = async () => {
     const credentials = getSslCredentials();
     const protocol = credentials ? 'https' : 'http';
 
+const { sseMiddleware } = require('./utils/sse');
+const { checkHostStatus } = require('./utils/status-checker');
+const db = require('./db');
+
+// ... (in startServer)
+
     // Main App Server
     const mainServer = credentials ? https.createServer(credentials, app) : http.createServer(app);
     mainServer.listen(config.port, () => {
@@ -133,6 +139,26 @@ const startServer = async () => {
     mcpServer.listen(config.mcpPort, () => {
       console.log(`MCP Server listening on ${protocol}://localhost:${config.mcpPort}`);
     });
+
+    // Start background status checker
+    if (config.checkEnabled) {
+        console.log(`Starting background status checker (interval: ${config.checkInterval}s)`);
+        setInterval(() => {
+            console.log('Running background status check...');
+            db.all('SELECT * FROM hosts WHERE check_enabled = 1', [], (err, hosts) => {
+                if (err) {
+                    console.error('Background check DB error:', err);
+                    return;
+                }
+                // Check hosts one by one to avoid overwhelming network/system
+                hosts.forEach(checkHostStatus);
+            });
+        }, config.checkInterval * 1000);
+    }
+
+// ... (before startServer call)
+app.use('/api/v1/events', authMiddleware, sseMiddleware);
+
 
   } catch (error) {
     console.error('Failed to start server:', error);
