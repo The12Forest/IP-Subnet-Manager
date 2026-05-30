@@ -4,16 +4,18 @@ npm-debug.log
 yarn-error.log
 pnpm-debug.log
 
-# Data & secrets
-Backend/data/*.db
-Backend/data/*.db-shm
-Backend/data/*.db-wal
+# App data (DB, generated certs) — volume-mounted in Docker
+data/
+
+# SSL certs (legacy location)
 Certs/
-Logs/
+
+# Secrets
 .env
 
 # Logs
 *.log
+Logs/
 
 # OS-specific
 .DS_Store
@@ -27,6 +29,6 @@ build/
 .vscode/
 .idea/
 
-# Gemini CLI
+# AI tool configs
 .gemini/
 *.gemini

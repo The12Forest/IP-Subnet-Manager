@@ -1,0 +1,32 @@
+# Production compose — pulls image from GitHub Container Registry
+# Replace GITHUB_USERNAME with your actual GitHub username (lowercase)
+
+services:
+  subnet-manager:
+    image: ghcr.io/GITHUB_USERNAME/subnet-manager:latest
+    container_name: subnet-manager
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+      - "${MCP_PORT:-3001}:3001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required — copy .env.example to .env}
+      - JWT_EXPIRY=${JWT_EXPIRY:-7d}
+      - MCP_TOKEN=${MCP_TOKEN:-}
+      - HTTPS_MODE=${HTTPS_MODE:-off}
+      - SSL_CERT_PATH=${SSL_CERT_PATH:-/app/data/certs/cert.pem}
+      - SSL_KEY_PATH=${SSL_KEY_PATH:-/app/data/certs/key.pem}
+      - HOSTNAME=${HOSTNAME:-localhost}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-60}
+      - CHECK_TIMEOUT=${CHECK_TIMEOUT:-2000}
+      - CHECK_ENABLED=${CHECK_ENABLED:-true}
+      - SETUP_WIZARD=${SETUP_WIZARD:-auto}
+      - MAX_USERS=${MAX_USERS:-0}
+      - SESSION_TIMEOUT=${SESSION_TIMEOUT:-3600}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW

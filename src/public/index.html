@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subnet Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Wizard overlay ──────────────────────────────────────────────────────── -->
+<div id="wizard-overlay" class="overlay hidden">
+  <div class="wizard-card">
+    <div class="wizard-steps" id="wizard-dots"></div>
+
+    <!-- Step 0: Welcome -->
+    <div class="step-page active" data-step="0">
+      <h2>Welcome to Subnet Manager</h2>
+      <p class="step-desc">Let's get your network set up. This only takes a minute.</p>
+      <div class="wizard-nav">
+        <button class="btn btn-primary" onclick="Wizard.next()">Get Started →</button>
+      </div>
+    </div>
+
+    <!-- Step 1: Network -->
+    <div class="step-page" data-step="1">
+      <h2>Network Configuration</h2>
+      <p class="step-desc">Define your first subnet. You can add more from the dashboard.</p>
+      <div class="form-group">
+        <label>Subnet Name</label>
+        <input type="text" id="wiz-subnet-name" placeholder="Home Network" value="Home Network">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Network Address</label>
+          <input type="text" id="wiz-network" placeholder="192.168.1.0" value="192.168.1.0">
+        </div>
+        <div class="form-group">
+          <label>CIDR Prefix</label>
+          <select id="wiz-cidr">
+            <option value="16">/16 (65534 hosts)</option>
+            <option value="24" selected>/24 (254 hosts)</option>
+            <option value="25">/25 (126 hosts)</option>
+            <option value="26">/26 (62 hosts)</option>
+            <option value="28">/28 (14 hosts)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Network Mode</label>
+        <select id="wiz-mode">
+          <option value="bridge" selected>bridge</option>
+          <option value="macvlan">macvlan</option>
+          <option value="ipvlan">ipvlan</option>
+          <option value="host">host</option>
+        </select>
+        <span class="hint">Label only — for your reference</span>
+      </div>
+      <div class="wizard-nav">
+        <button class="btn btn-secondary" onclick="Wizard.prev()">← Back</button>
+        <button class="btn btn-primary" onclick="Wizard.next()">Next →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Admin account -->
+    <div class="step-page" data-step="2">
+      <h2>Create Admin Account</h2>
+      <p class="step-desc">This will be your primary administrator account.</p>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="wiz-username" placeholder="admin" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="wiz-password" placeholder="Min. 8 characters" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="wiz-password2" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <div class="error-msg hidden" id="wiz-error"></div>
+      <div class="wizard-nav">
+        <button class="btn btn-secondary" onclick="Wizard.prev()">← Back</button>
+        <button class="btn btn-primary" onclick="Wizard.submit()" id="wiz-submit-btn">Complete Setup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Login overlay ──────────────────────────────────────────────────────── -->
+<div id="login-overlay" class="overlay hidden">
+  <div class="login-card">
+    <h1>Subnet Manager</h1>
+    <p class="subtitle">Sign in to continue</p>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="login-username" autocomplete="username" placeholder="admin">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" autocomplete="current-password" placeholder="Password">
+    </div>
+    <div class="error-msg hidden" id="login-error"></div>
+    <div style="margin-top:16px">
+      <button class="btn btn-primary" style="width:100%" onclick="App.login()" id="login-btn">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main app ──────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- Top bar -->
+  <header id="topbar">
+    <span class="brand">Subnet Manager</span>
+    <span class="badge" id="services-badge">0 services</span>
+    <div class="spacer"></div>
+    <button class="btn-icon" title="Toggle theme" onclick="App.toggleTheme()">◑</button>
+    <button class="btn-icon" title="Settings" onclick="SettingsPanel.open()">⚙</button>
+    <button class="user-pill" onclick="App.logout()" title="Sign out">
+      <span class="avatar" id="user-avatar">?</span>
+      <span id="user-name">—</span>
+    </button>
+  </header>
+
+  <!-- Content -->
+  <main id="app-main">
+    <!-- Stats row -->
+    <div id="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Subnets</div>
+        <div class="stat-value" id="stat-subnets">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Assigned Services</div>
+        <div class="stat-value" id="stat-services">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Free IPs</div>
+        <div class="stat-value" id="stat-free">—</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <input type="text" id="search-input" placeholder="Search by IP or name…" oninput="App.onSearch(this.value)">
+      <button class="btn btn-primary btn-sm" onclick="App.openAddSubnetModal()">+ Subnet</button>
+    </div>
+
+    <!-- Subnet grid -->
+    <div id="subnet-grid"></div>
+  </main>
+</div>
+
+<!-- ── Settings panel ────────────────────────────────────────────────────── -->
+<div id="settings-backdrop" onclick="SettingsPanel.close()"></div>
+<div id="settings-panel">
+  <div class="panel-header">
+    <h2>Settings</h2>
+    <button class="modal-close" onclick="SettingsPanel.close()">×</button>
+  </div>
+  <div class="panel-tabs">
+    <button class="panel-tab active" data-tab="general"   onclick="SettingsPanel.tab('general')">General</button>
+    <button class="panel-tab"        data-tab="network"   onclick="SettingsPanel.tab('network')">Network</button>
+    <button class="panel-tab"        data-tab="users"     onclick="SettingsPanel.tab('users')">Users</button>
+    <button class="panel-tab"        data-tab="auditlog"  onclick="SettingsPanel.tab('auditlog')">Audit Log</button>
+    <button class="panel-tab"        data-tab="about"     onclick="SettingsPanel.tab('about')">About</button>
+  </div>
+  <div class="panel-body">
+
+    <!-- General tab -->
+    <div class="tab-content active" id="tab-general">
+      <div class="panel-section">
+        <h4>Application</h4>
+        <div class="form-group">
+          <label>App Name</label>
+          <input type="text" id="set-app-name" placeholder="Subnet Manager">
+        </div>
+        <div class="form-group">
+          <label>Bind Host <span class="muted">(requires restart)</span></label>
+          <input type="text" id="set-bind-host" placeholder="0.0.0.0">
+          <span class="hint">0.0.0.0 = all interfaces, 127.0.0.1 = localhost only</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveGeneral()">Save</button>
+      </div>
+      <div class="panel-section">
+        <h4>Export</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn btn-secondary btn-sm" href="/api/v1/export/json" download>Export JSON</a>
+          <a class="btn btn-secondary btn-sm" href="/api/v1/export/markdown" download>Export Markdown</a>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h4>Import</h4>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="SettingsPanel.importJSON(this)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">Import JSON…</button>
+      </div>
+    </div>
+
+    <!-- Network tab -->
+    <div class="tab-content" id="tab-network">
+      <div class="panel-section">
+        <h4>Status Checks</h4>
+        <div class="form-group">
+          <label>Check Interval (seconds)</label>
+          <input type="number" id="set-check-interval" min="10" max="3600">
+        </div>
+        <div class="form-group">
+          <label>Timeout (milliseconds)</label>
+          <input type="number" id="set-check-timeout" min="500" max="10000">
+        </div>
+        <div class="toggle-group">
+          <span>Enable background checks</span>
+          <label class="toggle">
+            <input type="checkbox" id="set-check-enabled">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="SettingsPanel.saveNetwork()">Save</button>
+      </div>
+    </div>
+
+    <!-- Users tab -->
+    <div class="tab-content" id="tab-users">
+      <div id="users-panel-content">Loading…</div>
+    </div>
+
+    <!-- Audit log tab -->
+    <div class="tab-content" id="tab-auditlog">
+      <div id="audit-panel-content">Loading…</div>
+    </div>
+
+    <!-- About tab -->
+    <div class="tab-content" id="tab-about">
+      <div class="panel-section">
+        <h4>MCP Server</h4>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">
+          Built-in MCP server for Claude integration.<br>
+          Port: <span class="mono" id="mcp-port">3001</span>
+        </p>
+        <div class="form-group">
+          <label>Bearer Token</label>
+          <div class="token-box" id="mcp-token">—</div>
+          <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('mcp-token').textContent).then(()=>App.toast('Token copied','success'))">Copy Token</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h4>Version</h4>
+        <p style="font-size:13px;color:var(--muted)">Subnet Manager v1.0.0</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Modal overlay ─────────────────────────────────────────────────────── -->
+<div id="modal-overlay" class="hidden" onclick="App.closeModal(event)">
+  <div class="modal" id="modal-content" onclick="event.stopPropagation()">
+    <!-- Filled dynamically -->
+  </div>
+</div>
+
+<!-- ── Toast container ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<script src="app.js"></script>
+<script src="settings.js"></script>
+<script src="users.js"></script>
+<script src="wizard.js"></script>
+</body>
+</html>
