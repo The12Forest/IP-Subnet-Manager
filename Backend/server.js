@@ -28,6 +28,9 @@ app.use('/api/v1/auth', require('./routes/auth'));
 app.use('/api/v1/users', authMiddleware, adminMiddleware, require('./routes/users'));
 app.use('/api/v1/settings', authMiddleware, adminMiddleware, require('./routes/settings'));
 app.use('/api/v1/status', authMiddleware, require('./routes/status'));
+app.use('/api/v1/audit', authMiddleware, adminMiddleware, require('./routes/audit'));
+app.use('/api/v1/export', authMiddleware, require('./routes/export'));
+app.use('/api/v1/import', authMiddleware, adminMiddleware, require('./routes/import'));
 
 const subnetsRouter = require('./routes/subnets');
 const hostsRouter = require('./routes/hosts');
