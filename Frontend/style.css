@@ -138,4 +138,21 @@ input[type="search"], input[type="text"], input[type="password"] {
     margin-bottom: 1rem;
 }
 
+#wizard-form label, #add-host-form label {
+    display: block;
+    margin-top: 1rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+}
+#wizard-form hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.5rem 0;
+}
+#wizard-form button, #add-host-form button {
+    margin-top: 1.5rem;
+    width: 100%;
+}
+
 /* More styles to come... */
