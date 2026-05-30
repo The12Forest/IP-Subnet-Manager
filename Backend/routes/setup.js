@@ -53,13 +53,21 @@ router.post('/run', (req, res) => {
                     settingEntries.forEach(([key, value]) => {
                         stmt.run(key, value);
                     });
+const { logAction } = require('../utils/audit-log');
+
+// ... (inside router.post('/run'))
                     stmt.finalize((err) => {
                         if (err) {
                             console.error('Failed to save settings during setup:', err);
                             return res.status(500).json({ error: 'Failed to save settings.' });
                         }
+                        // Log actions
+                        logAction(null, 'create', 'user', this.lastID, { username, role: 'admin' });
+                        logAction(null, 'update', 'settings', 'initial_setup', settings);
+
                         res.status(201).json({ message: 'Setup completed successfully.' });
                     });
+// ...
                 });
             });
         } catch (error) {

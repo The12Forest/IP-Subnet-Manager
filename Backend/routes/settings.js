@@ -35,11 +35,14 @@ router.put('/', (req, res) => {
             // Storing all values as JSON strings for consistency
             stmt.run(key, JSON.stringify(value));
         });
+const { logAction } = require('../utils/audit-log');
+// ... (in PUT)
         stmt.finalize((err) => {
             if (err) {
                 console.error('Error updating settings:', err);
                 return res.status(500).json({ error: 'Failed to update settings.' });
             }
+            logAction(req.user, 'update', 'settings', 'all', settings);
             res.status(200).json({ message: 'Settings updated successfully.' });
         });
     });

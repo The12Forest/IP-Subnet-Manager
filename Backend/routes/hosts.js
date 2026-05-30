@@ -1,12 +1,8 @@
 const express = require('express');
-const router = express.Router({ mergeParams: true }); // Enable passing params from parent routers
+const router = express.Router({ mergeParams: true });
 const db = require('../db');
-
-// This router handles:
-// GET /api/v1/subnets/:subnet_id/hosts
-// POST /api/v1/subnets/:subnet_id/hosts
-// PUT /api/v1/hosts/:id
-// DELETE /api/v1/hosts/:id
+const { logAction } = require('../utils/audit-log');
+const { checkHostStatus } = require('../utils/status-checker');
 
 // GET all hosts for a subnet
 router.get('/', (req, res) => {
@@ -23,10 +19,6 @@ router.get('/', (req, res) => {
     });
 });
 
-const { checkHostStatus } = require('../utils/status-checker');
-
-// ... (rest of the file is the same)
-
 // POST a new host to a subnet
 router.post('/', (req, res) => {
     const { subnet_id } = req.params;
@@ -41,6 +33,7 @@ router.post('/', (req, res) => {
             console.error('Error creating host:', err);
             return res.status(500).json({ error: 'Failed to create host. IP may already exist.' });
         }
+        logAction(req.user, 'create', 'host', this.lastID, { ip, name, subnet_id });
         res.status(201).json({ id: this.lastID, subnet_id, ...req.body });
     });
 });
@@ -73,7 +66,8 @@ router.put('/:id', (req, res) => {
 
 // DELETE a host by its own ID
 router.delete('/:id', (req, res) => {
-    db.run('DELETE FROM hosts WHERE id = ?', [req.params.id], function(err) {
+    const idToDelete = req.params.id;
+    db.run('DELETE FROM hosts WHERE id = ?', [idToDelete], function(err) {
         if (err) {
             console.error('Error deleting host:', err);
             return res.status(500).json({ error: 'Failed to delete host.' });
@@ -81,6 +75,7 @@ router.delete('/:id', (req, res) => {
         if (this.changes === 0) {
             return res.status(404).json({ error: 'Host not found.' });
         }
+        logAction(req.user, 'delete', 'host', idToDelete, {});
         res.status(200).json({ message: 'Host deleted successfully.' });
     });
 });
