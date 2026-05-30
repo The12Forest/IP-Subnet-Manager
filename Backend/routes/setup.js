@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const db = require('../db');
+const { logAction } = require('../utils/audit-log');
 
 // GET /api/v1/setup/status
-// Checks if the application has been set up by looking for any users.
 router.get('/status', (req, res) => {
     db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
         if (err) {
@@ -16,15 +16,16 @@ router.get('/status', (req, res) => {
 });
 
 // POST /api/v1/setup/run
-// Creates the first admin user and saves initial network settings.
-router.post('/run', (req, res) => {
-    // First, confirm that no users exist.
-    db.get('SELECT COUNT(*) as count FROM users', [], async (err, row) => {
-        if (err) {
-            console.error('Failed to check user count during setup:', err);
-            return res.status(500).json({ error: 'Database error during setup.' });
-        }
-        if (row.count > 0) {
+router.post('/run', async (req, res) => {
+    try {
+        const userCount = await new Promise((resolve, reject) => {
+            db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
+                if (err) return reject(new Error('Database error checking user count.'));
+                resolve(row.count);
+            });
+        });
+
+        if (userCount > 0) {
             return res.status(403).json({ error: 'Setup has already been completed.' });
         }
 
@@ -33,48 +34,38 @@ router.post('/run', (req, res) => {
             return res.status(400).json({ error: 'Username, password, and settings are required.' });
         }
 
-        try {
-            // Create admin user
-            const passwordHash = await bcrypt.hash(password, 10);
-            const userSql = `INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')`;
-            
+        // Create admin user
+        const passwordHash = await bcrypt.hash(password, 10);
+        const userSql = `INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')`;
+        const { lastID: userId } = await new Promise((resolve, reject) => {
             db.run(userSql, [username, passwordHash], function(err) {
-                if (err) {
-                    console.error('Failed to create admin user during setup:', err);
-                    return res.status(500).json({ error: 'Failed to create admin user.' });
-                }
+                if (err) return reject(new Error('Failed to create admin user.'));
+                resolve(this);
+            });
+        });
 
-                // Save settings
-                const settingsSql = `INSERT INTO settings (key, value) VALUES (?, ?)`;
-                const settingEntries = Object.entries(settings);
-                
-                db.serialize(() => {
-                    const stmt = db.prepare(settingsSql);
-                    settingEntries.forEach(([key, value]) => {
-                        stmt.run(key, value);
-                    });
-const { logAction } = require('../utils/audit-log');
-
-// ... (inside router.post('/run'))
-                    stmt.finalize((err) => {
-                        if (err) {
-                            console.error('Failed to save settings during setup:', err);
-                            return res.status(500).json({ error: 'Failed to save settings.' });
-                        }
-                        // Log actions
-                        logAction(null, 'create', 'user', this.lastID, { username, role: 'admin' });
-                        logAction(null, 'update', 'settings', 'initial_setup', settings);
-
-                        res.status(201).json({ message: 'Setup completed successfully.' });
-                    });
-// ...
+        // Save settings
+        const settingsSql = `INSERT INTO settings (key, value) VALUES (?, ?)`;
+        await new Promise((resolve, reject) => {
+            db.serialize(() => {
+                const stmt = db.prepare(settingsSql);
+                Object.entries(settings).forEach(([key, value]) => stmt.run(key, JSON.stringify(value)));
+                stmt.finalize((err) => {
+                    if (err) return reject(new Error('Failed to save settings.'));
+                    resolve();
                 });
             });
-        } catch (error) {
-            console.error('An unexpected error occurred during setup:', error);
-            res.status(500).json({ error: 'An unexpected error occurred during setup.' });
-        }
-    });
+        });
+        
+        logAction(null, 'create', 'user', userId, { username, role: 'admin' });
+        logAction(null, 'update', 'settings', 'initial_setup', settings);
+
+        res.status(201).json({ message: 'Setup completed successfully.' });
+
+    } catch (error) {
+        console.error("Error during setup:", error.message);
+        res.status(500).json({ error: 'An error occurred during setup.' });
+    }
 });
 
 module.exports = router;

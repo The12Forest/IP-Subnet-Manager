@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { logAction } = require('../utils/audit-log');
 
 // GET /api/v1/settings
 router.get('/', (req, res) => {
@@ -9,10 +10,8 @@ router.get('/', (req, res) => {
             console.error('Error fetching settings:', err);
             return res.status(500).json({ error: 'Database error fetching settings.' });
         }
-        // Convert array of {key, value} to a single object
         const settings = rows.reduce((acc, row) => {
             try {
-                // Attempt to parse JSON strings
                 acc[row.key] = JSON.parse(row.value);
             } catch (e) {
                 acc[row.key] = row.value;
@@ -26,17 +25,13 @@ router.get('/', (req, res) => {
 // PUT /api/v1/settings
 router.put('/', (req, res) => {
     const settings = req.body;
-    // Use INSERT OR REPLACE (UPSERT) to update existing or create new settings
     const sql = `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`;
     
     db.serialize(() => {
         const stmt = db.prepare(sql);
         Object.entries(settings).forEach(([key, value]) => {
-            // Storing all values as JSON strings for consistency
             stmt.run(key, JSON.stringify(value));
         });
-const { logAction } = require('../utils/audit-log');
-// ... (in PUT)
         stmt.finalize((err) => {
             if (err) {
                 console.error('Error updating settings:', err);
