@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 require('dotenv').config();
 
 const config = {
@@ -10,7 +11,7 @@ const config = {
   // Security
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiry: process.env.JWT_EXPIRY || '7d',
-  mcpToken: process.env.MCP_TOKEN || null,
+  mcpToken: process.env.MCP_TOKEN || crypto.randomBytes(32).toString('hex'),
 
   // HTTPS
   httpsMode: process.env.HTTPS_MODE || 'off', // off | self-signed | custom
@@ -35,6 +36,18 @@ const config = {
 // Validate required config
 if (!config.jwtSecret) {
   throw new Error('FATAL ERROR: JWT_SECRET is not defined.');
+}
+
+// Log the auto-generated MCP token if it wasn't provided by the user
+if (!process.env.MCP_TOKEN) {
+    console.log(`
+-------------------------------------------------------------------
+[CONFIG] No MCP_TOKEN provided. A secure token has been generated.
+This token is required for authenticating with the MCP server.
+You can set it permanently in your .env or docker-compose file.
+MCP Token: ${config.mcpToken}
+-------------------------------------------------------------------
+    `);
 }
 
 module.exports = config;
