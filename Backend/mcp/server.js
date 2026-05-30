@@ -9,6 +9,31 @@ mcpApp.use(express.json());
 // State for active SSE sessions
 let sessions = new Map();
 
+// --- Claude Web Compatibility (OAuth2 Stubs) ---
+
+// Claude web might try to "Authorize" first
+mcpApp.get('/authorize', (req, res) => {
+    // Redirect back with a dummy code
+    const redirectUri = req.query.redirect_uri;
+    const state = req.query.state;
+    if (redirectUri) {
+        const url = new URL(redirectUri);
+        url.searchParams.set('code', 'dummy-code');
+        url.searchParams.set('state', state);
+        return res.redirect(url.toString());
+    }
+    res.status(200).send('Subnet Manager MCP Authorization - Please use your MCP Token.');
+});
+
+// Claude web might try to exchange the code for a token
+mcpApp.post('/token', (req, res) => {
+    res.json({
+        access_token: require('../config').mcpToken,
+        token_type: 'Bearer',
+        expires_in: 3600
+    });
+});
+
 // --- SSE Endpoint ---
 mcpApp.get('/sse', mcpAuth, (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
