@@ -151,7 +151,11 @@ const UsersPanel = {
 
   async deleteUser(id) {
     const u = UsersPanel._users.find(u => u.id === id);
-    if (!confirm(`Delete user "${u ? u.username : id}"?`)) return;
+    const ok = await App.confirm(
+      `Delete user <b>${App.esc(u ? u.username : id)}</b>?`,
+      { confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
 
     const res = await fetch(`/api/v1/users/${id}`, { method: 'DELETE' });
     if (!res.ok) {

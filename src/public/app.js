@@ -193,10 +193,14 @@ const App = {
     const canEdit  = App.user && (App.user.role === 'admin' || App.user.role === 'editor');
     const canDel   = App.user && App.user.role === 'admin';
 
-    const hostRows = hosts.map(h => App.renderHostRow(h)).join('');
+    // Sort hosts numerically by IP
+    const sortedHosts = [...hosts].sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
+    const hostRows = sortedHosts.map(h => App.renderHostRow(h)).join('');
 
     // Show up to 5 free IPs when not searching
-    const showFree = !query && freeIps.length > 0;
+    const d        = App.hosts[s.id] || {};
+    const freeCount = d.free_count !== undefined ? d.free_count : freeIps.length;
+    const showFree  = !query && freeIps.length > 0;
     const freeSlice = freeIps.slice(0, 5);
     const freeRows = showFree
       ? freeSlice.map(ip => `
@@ -207,8 +211,9 @@ const App = {
           </div>`).join('')
       : '';
 
-    const freeMore = (showFree && freeIps.length > 5)
-      ? `<div class="free-ips-more">+${freeIps.length - 5} free IPs</div>`
+    const remaining = freeCount - freeSlice.length;
+    const freeMore = (showFree && remaining > 0)
+      ? `<div class="free-ips-more" onclick="App.openFreeIPsModal(${s.id})">+${remaining} more free IPs — click to see all</div>`
       : '';
 
     return `
@@ -592,7 +597,8 @@ const App = {
   },
 
   async deleteHost(hostId) {
-    if (!confirm('Delete this host?')) return;
+    const ok = await App.confirm('Delete this host? This cannot be undone.', { confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     const res = await fetch(`/api/v1/hosts/${hostId}`, { method: 'DELETE' });
     if (!res.ok) {
       const d = await res.json();
@@ -620,6 +626,49 @@ const App = {
       el.classList.remove('show');
       setTimeout(() => el.remove(), 250);
     }, 3000);
+  },
+
+  // ── IP utilities ─────────────────────────────────────────────────────────
+
+  _ipToInt(ip) {
+    return ip.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0;
+  },
+
+  openFreeIPsModal(subnetId) {
+    const subnet = App.subnets.find(s => s.id === subnetId);
+    const d      = App.hosts[subnetId] || { free_ips: [] };
+    App._freeIPsCtx = { subnetId, all: d.free_ips };
+
+    App.openModal(`
+      <div class="modal-header">
+        <h3>Free IPs — ${App.esc(subnet ? subnet.name : subnetId)}</h3>
+        <button class="modal-close" onclick="App.closeModal()">×</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <input type="text" id="free-ip-filter" placeholder="Filter IPs…"
+          oninput="App._renderFreeIPList(this.value)" style="width:100%">
+      </div>
+      <div id="free-ip-list" style="max-height:420px;overflow-y:auto;margin:0 -4px"></div>
+    `);
+    App._renderFreeIPList('');
+    setTimeout(() => document.getElementById('free-ip-filter')?.focus(), 50);
+  },
+
+  _renderFreeIPList(query) {
+    const { subnetId, all } = App._freeIPsCtx;
+    const filtered = query ? all.filter(ip => ip.includes(query)) : all;
+    const container = document.getElementById('free-ip-list');
+    if (!container) return;
+    if (filtered.length === 0) {
+      container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 4px">No matching IPs</p>';
+      return;
+    }
+    container.innerHTML = filtered.map(ip => `
+      <div class="host-row free-ip" onclick="App.closeModal();App.openAddHostModal(${subnetId},'${ip}')">
+        <span class="status-dot unknown"></span>
+        <span class="host-ip mono">${ip}</span>
+        <span class="host-name" style="color:var(--muted);font-style:italic;font-size:12px">click to assign</span>
+      </div>`).join('');
   },
 
   // ── HTML escape ───────────────────────────────────────────────────────────

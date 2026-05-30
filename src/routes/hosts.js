@@ -41,8 +41,8 @@ router.get('/', requireAuth, (req, res) => {
 
   res.json({
     hosts,
-    free_ips:   freeForContainers.slice(0, 50),
-    free_count: free.length,
+    free_ips:   freeForContainers,   // all free IPs — frontend slices for card display
+    free_count: free.length,          // total including server IPs
   });
 });
 
