@@ -1,1 +1,141 @@
-/* Placeholder for Frontend/style.css */
+/* --- THEMES --- */
+:root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "SF Mono", "Menlo", "Consolas", "Monaco", monospace;
+}
+
+:root, :root.light {
+    --bg-color: #f4f4f5;
+    --card-color: #ffffff;
+    --border-color: #e4e4e7;
+    --text-color: #18181b;
+    --text-muted-color: #71717a;
+    --dot-online: #22c55e;
+    --dot-offline: #ef4444;
+    --dot-unknown: #555;
+    --accent-color: #3b82f6;
+    --input-bg: #fff;
+    --input-border: #ccc;
+}
+
+:root.dark {
+    --bg-color: #161616;
+    --card-color: #1e1e1e;
+    --border-color: #2a2a2a;
+    --text-color: #f0f0f0;
+    --text-muted-color: #888;
+    --input-bg: #252525;
+    --input-border: #444;
+}
+
+/* --- BASE STYLES --- */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 1rem 2rem;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+h1, h2, h3 {
+    margin: 0;
+    font-weight: 600;
+}
+
+button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+input[type="search"], input[type="text"], input[type="password"] {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border: 1px solid var(--input-border);
+    padding: 0.5rem;
+    border-radius: 5px;
+    width: 100%;
+}
+
+
+/* --- LAYOUT --- */
+#main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+#subnet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 1.5rem;
+}
+
+/* --- COMPONENTS --- */
+.card {
+    background-color: var(--card-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+.status-dot.online { background-color: var(--dot-online); }
+.status-dot.offline { background-color: var(--dot-offline); }
+.status-dot.unknown { background-color: var(--dot-unknown); }
+
+.ip-address {
+    font-family: var(--font-mono);
+}
+
+#search-bar {
+    margin-bottom: 1.5rem;
+    max-width: 400px;
+}
+
+/* --- MODALS --- */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 450px;
+}
+
+.modal-content h2 {
+    margin-bottom: 1.5rem;
+}
+
+.modal-content form > input {
+    margin-bottom: 1rem;
+}
+
+/* More styles to come... */
