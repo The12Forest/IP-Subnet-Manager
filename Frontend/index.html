@@ -8,22 +8,29 @@
 </head>
 <body>
     <header id="main-header">
-        <h1>Subnet Manager</h1>
-        <div id="stats-container">
-            <!-- Stats cards will be rendered here -->
+        <div class="header-left">
+            <h1>Subnet Manager</h1>
+            <div id="stats-row">
+                <div class="stat-badge"><span id="stat-subnets">0</span> Subnets</div>
+                <div class="stat-badge"><span id="stat-hosts">0</span> Hosts</div>
+            </div>
         </div>
         <div id="controls">
-            <button id="theme-toggle">Toggle Theme</button>
+            <button id="add-subnet-btn" class="secondary">Add Subnet</button>
+            <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+            <button id="theme-toggle" class="icon-btn" title="Toggle Theme">🌓</button>
             <div id="user-menu" style="display: none;">
                 <span id="current-user"></span>
-                <button id="logout-btn">Logout</button>
+                <button id="logout-btn" class="danger">Logout</button>
             </div>
         </div>
     </header>
 
     <main>
-        <div id="search-bar">
-            <input type="search" placeholder="Filter by IP or name...">
+        <div class="action-bar">
+            <div id="search-bar">
+                <input type="search" id="global-search" placeholder="Search IP, name, or description...">
+            </div>
         </div>
 
         <div id="subnet-grid">
@@ -36,26 +43,112 @@
         <div class="modal-content card">
             <h2>Login</h2>
             <form id="login-form">
-                <input type="text" id="login-username" placeholder="Username" required>
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit">Login</button>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="primary">Login</button>
             </form>
         </div>
     </div>
 
-    <div id="add-host-modal" class="modal" style="display: none;">
-        <!-- Add/Edit host form will be rendered here -->
+    <div id="subnet-modal" class="modal" style="display: none;">
+        <div class="modal-content card">
+            <h2 id="subnet-modal-title">Add Subnet</h2>
+            <form id="subnet-form">
+                <input type="hidden" id="subnet-id">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="subnet-name" placeholder="e.g. DMZ, Internal" required>
+                </div>
+                <div class="form-group">
+                    <label>Network Address</label>
+                    <input type="text" id="subnet-network" placeholder="e.g. 10.10.1.0" required>
+                </div>
+                <div class="form-group">
+                    <label>CIDR</label>
+                    <input type="number" id="subnet-cidr" value="24" min="1" max="32" required>
+                </div>
+                <div class="form-group">
+                    <label>Color (Hex)</label>
+                    <input type="color" id="subnet-color" value="#3b82f6">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="primary">Save Subnet</button>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <!-- Settings Panel -->
-    <aside id="settings-panel" style="display: none;">
-        <!-- Settings content will be rendered here -->
-    </aside>
-    
-    <!-- Setup Wizard -->
-    <div id="wizard-overlay" class="modal" style="display: none;">
-        <!-- Setup wizard form will be rendered here -->
+    <div id="host-modal" class="modal" style="display: none;">
+        <div class="modal-content card">
+            <h2 id="host-modal-title">Add Host</h2>
+            <form id="host-form">
+                <input type="hidden" id="host-id">
+                <input type="hidden" id="host-subnet-id">
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" id="host-ip" required>
+                </div>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="host-name" placeholder="e.g. web-server-01" required>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="host-type">
+                        <option value="container">Container</option>
+                        <option value="server">Server</option>
+                        <option value="reserved">Reserved</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Check Port (Optional)</label>
+                    <input type="number" id="host-port" placeholder="e.g. 80, 443">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="host-notes" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="primary">Save Host</button>
+                </div>
+            </form>
+        </div>
     </div>
+
+    <!-- Settings Sidebar -->
+    <div id="settings-sidebar" class="sidebar" style="display: none;">
+        <div class="sidebar-header">
+            <h2>Settings</h2>
+            <button id="close-settings" class="icon-btn">✕</button>
+        </div>
+        <div class="sidebar-content">
+            <!-- Settings tabs/sections here -->
+            <div class="settings-section">
+                <h3>User Management</h3>
+                <div id="user-list"></div>
+                <button id="add-user-btn" class="secondary small">Add User</button>
+            </div>
+            <hr>
+            <div class="settings-section">
+                <h3>About</h3>
+                <p>Subnet Manager v1.0.0</p>
+                <div class="token-box">
+                    <label>MCP Token</label>
+                    <code id="mcp-token-display">Loading...</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <script src="app.js"></script>
     <script src="wizard.js"></script>
