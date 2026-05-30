@@ -1,45 +1,100 @@
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
+const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
+const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js');
+const { z } = require('zod');
 const mcpAuth = require('../middleware/mcp-auth');
 const db = require('../db');
 
 const mcpApp = express();
 
-// Enable CORS for Claude web
-mcpApp.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// 1. Initialize the official MCP Server
+const server = new McpServer({
+    name: "subnet-manager",
+    version: "1.0.0"
+});
 
-mcpApp.use(express.json());
+// 2. Define Tools using the SDK
+server.tool(
+    "list_subnets",
+    {},
+    async () => {
+        return new Promise((resolve) => {
+            db.all('SELECT * FROM subnets', [], (err, rows) => {
+                if (err) resolve({ content: [{ type: "text", text: `Error: ${err.message}` }], isError: true });
+                else resolve({ content: [{ type: "text", text: JSON.stringify(rows, null, 2) }] });
+            });
+        });
+    }
+);
 
-// State for active SSE sessions
-let sessions = new Map();
+server.tool(
+    "list_hosts",
+    { subnet_id: z.number().optional() },
+    async ({ subnet_id }) => {
+        return new Promise((resolve) => {
+            const sql = subnet_id ? 'SELECT * FROM hosts WHERE subnet_id = ?' : 'SELECT * FROM hosts';
+            const params = subnet_id ? [subnet_id] : [];
+            db.all(sql, params, (err, rows) => {
+                if (err) resolve({ content: [{ type: "text", text: `Error: ${err.message}` }], isError: true });
+                else resolve({ content: [{ type: "text", text: JSON.stringify(rows, null, 2) }] });
+            });
+        });
+    }
+);
 
-// --- Claude Web Compatibility (OAuth2 Stubs) ---
+server.tool(
+    "add_subnet",
+    {
+        name: z.string(),
+        network: z.string().describe("e.g. 10.10.1.0"),
+        cidr: z.number().default(24)
+    },
+    async ({ name, network, cidr }) => {
+        return new Promise((resolve) => {
+            db.run('INSERT INTO subnets (name, network, cidr) VALUES (?, ?, ?)', 
+                [name, network, cidr], 
+                function(err) {
+                    if (err) resolve({ content: [{ type: "text", text: `Error: ${err.message}` }], isError: true });
+                    else resolve({ content: [{ type: "text", text: `Subnet created with ID: ${this.lastID}` }] });
+                }
+            );
+        });
+    }
+);
 
+// 3. Web Setup (SSE Transport)
+// Note: We need a way to map multiple connections. The SDK transport handles one connection.
+// For simplicity in a multi-client web env, we can create a transport per request.
+let transport;
+
+mcpApp.get('/sse', mcpAuth, async (req, res) => {
+    console.log('[MCP] New SSE connection');
+    transport = new SSEServerTransport('/mcp/messages', res);
+    await server.connect(transport);
+});
+
+mcpApp.post('/messages', mcpAuth, async (req, res) => {
+    if (!transport) {
+        return res.status(400).send('Session not initialized');
+    }
+    await transport.handlePostMessage(req, res);
+});
+
+// --- OAuth2 Stubs for Claude Web ---
 mcpApp.get('/authorize', (req, res) => {
     const redirectUri = req.query.redirect_uri;
     const state = req.query.state;
-    console.log(`[MCP] Authorize request. Redirecting to: ${redirectUri}`);
-    
     if (redirectUri) {
-        try {
-            const url = new URL(redirectUri);
-            url.searchParams.set('code', 'dummy-code');
-            if (state) url.searchParams.set('state', state);
-            return res.redirect(url.toString());
-        } catch (e) {
-            console.error('[MCP] Invalid redirect_uri:', redirectUri);
-        }
+        const url = new URL(redirectUri);
+        url.searchParams.set('code', 'dummy-code');
+        if (state) url.searchParams.set('state', state);
+        return res.redirect(url.toString());
     }
-    res.status(200).send('Subnet Manager MCP Authorization - Please use your MCP Token.');
+    res.status(200).send('Authorized. Please use your MCP token in Claude.');
 });
 
 mcpApp.post('/token', (req, res) => {
-    console.log('[MCP] Token exchange request');
     res.json({
         access_token: require('../config').mcpToken,
         token_type: 'Bearer',
@@ -47,145 +102,6 @@ mcpApp.post('/token', (req, res) => {
     });
 });
 
-// --- SSE Endpoint ---
-mcpApp.get('/sse', mcpAuth, (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    const sessionId = crypto.randomUUID();
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const messageUrl = new URL('/mcp/messages', `${protocol}://${req.get('host')}`);
-    messageUrl.searchParams.set('sessionId', sessionId);
-
-    sessions.set(sessionId, { res });
-
-    // Send the endpoint event
-    res.write(`event: endpoint\ndata: ${messageUrl.toString()}\n\n`);
-
-    req.on('close', () => {
-        sessions.delete(sessionId);
-    });
-});
-
-// --- Messages Endpoint ---
-mcpApp.post('/messages', mcpAuth, async (req, res) => {
-    const sessionId = req.query.sessionId;
-    const session = sessions.get(sessionId);
-    
-    if (!sessionId || !session) {
-        return res.status(404).json({ error: 'Session not found or expired' });
-    }
-
-    const message = req.body;
-    const { jsonrpc, id, method, params } = message;
-
-    if (jsonrpc !== '2.0') {
-        return res.status(400).json({ error: 'Invalid JSON-RPC version' });
-    }
-
-    // Handle MCP Methods
-    switch (method) {
-        case 'initialize':
-            return sendResponse(session, id, {
-                protocolVersion: '2024-11-05',
-                capabilities: {
-                    tools: {}
-                },
-                serverInfo: {
-                    name: 'subnet-manager',
-                    version: '1.0.0'
-                }
-            });
-
-        case 'notifications/initialized':
-            return res.status(202).end();
-
-        case 'tools/list':
-            return sendResponse(session, id, {
-                tools: [
-                    {
-                        name: 'list_subnets',
-                        description: 'List all configured subnets',
-                        inputSchema: { type: 'object', properties: {} }
-                    },
-                    {
-                        name: 'list_hosts',
-                        description: 'List hosts, optionally filtered by subnet',
-                        inputSchema: {
-                            type: 'object',
-                            properties: {
-                                subnet_id: { type: 'integer', description: 'Filter by subnet ID' }
-                            }
-                        }
-                    },
-                    {
-                        name: 'add_subnet',
-                        description: 'Create a new subnet',
-                        inputSchema: {
-                            type: 'object',
-                            properties: {
-                                name: { type: 'string' },
-                                network: { type: 'string', description: 'e.g. 10.10.1.0' },
-                                cidr: { type: 'integer', default: 24 }
-                            },
-                            required: ['name', 'network']
-                        }
-                    }
-                ]
-            });
-
-        case 'tools/call':
-            const toolResult = await handleToolCall(params.name, params.arguments);
-            return sendResponse(session, id, {
-                content: [{ type: 'text', text: JSON.stringify(toolResult) }]
-            });
-
-        default:
-            return sendResponse(session, id, {
-                error: { code: -32601, message: `Method not found: ${method}` }
-            }, true);
-    }
-});
-
-const sendResponse = (session, id, result, isError = false) => {
-    const response = {
-        jsonrpc: '2.0',
-        id,
-        [isError ? 'error' : 'result']: result
-    };
-    session.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
-    return true;
-};
-
-async function handleToolCall(name, args) {
-    return new Promise((resolve) => {
-        switch (name) {
-            case 'list_subnets':
-                db.all('SELECT * FROM subnets', [], (err, rows) => {
-                    resolve(err ? { error: err.message } : rows);
-                });
-                break;
-            case 'list_hosts':
-                const sql = args.subnet_id ? 'SELECT * FROM hosts WHERE subnet_id = ?' : 'SELECT * FROM hosts';
-                const params = args.subnet_id ? [args.subnet_id] : [];
-                db.all(sql, params, (err, rows) => {
-                    resolve(err ? { error: err.message } : rows);
-                });
-                break;
-            case 'add_subnet':
-                db.run('INSERT INTO subnets (name, network, cidr) VALUES (?, ?, ?)', 
-                    [args.name, args.network, args.cidr || 24], 
-                    function(err) {
-                        resolve(err ? { error: err.message } : { id: this.lastID, success: true });
-                    }
-                );
-                break;
-            default:
-                resolve({ error: 'Unknown tool' });
-        }
-    });
-}
+module.exports = mcpApp;
 
 module.exports = mcpApp;
