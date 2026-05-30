@@ -18,33 +18,8 @@ mcpApp.use(express.json());
 // State for active SSE sessions
 let sessions = new Map();
 
-// --- Discovery & PRM (2025-11 Spec) ---
-
-// Protected Resource Metadata (PRM)
-mcpApp.get('/.well-known/mcp', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.json({
-        mcp_endpoint: `${baseUrl}/sse`,
-        authorization_servers: [baseUrl]
-    });
-});
-
-// OAuth2 Authorization Server Metadata
-mcpApp.get('/.well-known/oauth-authorization-server', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.json({
-        issuer: baseUrl,
-        authorization_endpoint: `${baseUrl}/authorize`,
-        token_endpoint: `${baseUrl}/token`,
-        response_types_supported: ['code'],
-        grant_types_supported: ['authorization_code'],
-        token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic']
-    });
-});
-
 // --- Claude Web Compatibility (OAuth2 Stubs) ---
 
-// Claude web might try to "Authorize" first
 mcpApp.get('/authorize', (req, res) => {
     const redirectUri = req.query.redirect_uri;
     const state = req.query.state;
@@ -63,10 +38,8 @@ mcpApp.get('/authorize', (req, res) => {
     res.status(200).send('Subnet Manager MCP Authorization - Please use your MCP Token.');
 });
 
-// Claude web might try to exchange the code for a token
 mcpApp.post('/token', (req, res) => {
     console.log('[MCP] Token exchange request');
-    // We return the actual MCP token from config as the access_token
     res.json({
         access_token: require('../config').mcpToken,
         token_type: 'Bearer',
@@ -82,9 +55,8 @@ mcpApp.get('/sse', mcpAuth, (req, res) => {
     res.flushHeaders();
 
     const sessionId = crypto.randomUUID();
-    
-    // The spec requires sending the endpoint URL where Claude should POST messages
-    const messageUrl = new URL('/messages', `${req.protocol}://${req.get('host')}`);
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const messageUrl = new URL('/mcp/messages', `${protocol}://${req.get('host')}`);
     messageUrl.searchParams.set('sessionId', sessionId);
 
     sessions.set(sessionId, { res });

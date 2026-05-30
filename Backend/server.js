@@ -10,6 +10,9 @@ const selfsigned = require('selfsigned');
 const config = require('./config');
 const createSchema = require('./db/schema');
 const mcpServerApp = require('./mcp/server');
+const { sseMiddleware } = require('./utils/sse');
+const { checkHostStatus } = require('./utils/status-checker');
+const db = require('./db');
 
 const app = express();
 
@@ -22,6 +25,29 @@ const authMiddleware = require('./middleware/auth');
 const adminMiddleware = require('./middleware/admin');
 const editorMiddleware = require('./middleware/editor');
 
+// --- Standard MCP Discovery (at root) ---
+app.get('/.well-known/mcp', (req, res) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const baseUrl = `${protocol}://${req.get('host')}`;
+  res.json({
+      mcp_endpoint: `${baseUrl}/mcp/sse`,
+      authorization_servers: [baseUrl]
+  });
+});
+
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const baseUrl = `${protocol}://${req.get('host')}`;
+  res.json({
+      issuer: baseUrl,
+      authorization_endpoint: `${baseUrl}/mcp/authorize`,
+      token_endpoint: `${baseUrl}/mcp/token`,
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic']
+  });
+});
+
 // API Routes
 app.use('/api/v1/setup', require('./routes/setup'));
 app.use('/api/v1/auth', require('./routes/auth'));
@@ -31,28 +57,10 @@ app.use('/api/v1/status', authMiddleware, require('./routes/status'));
 app.use('/api/v1/audit', authMiddleware, adminMiddleware, require('./routes/audit'));
 app.use('/api/v1/export', authMiddleware, require('./routes/export'));
 app.use('/api/v1/import', authMiddleware, adminMiddleware, require('./routes/import'));
+app.use('/api/v1/events', authMiddleware, sseMiddleware);
 
-const subnetsRouter = require('./routes/subnets');
-const hostsRouter = require('./routes/hosts');
-
-// Subnets can be viewed by any authenticated user
-// Mutations require editor or admin
-subnetsRouter.post('/', editorMiddleware);
-subnetsRouter.put('/:id', editorMiddleware);
-subnetsRouter.delete('/:id', adminMiddleware); // Delete is admin-only
-
-// Hosts can be viewed by any authenticated user
-// Mutations require editor or admin
-hostsRouter.post('/', editorMiddleware);
-hostsRouter.put('/:id', editorMiddleware);
-hostsRouter.delete('/:id', editorMiddleware);
-
-// Nest hosts router under subnets for creation/listing
-subnetsRouter.use('/:subnet_id/hosts', hostsRouter);
-
-app.use('/api/v1/subnets', authMiddleware, subnetsRouter);
-app.use('/api/v1/hosts', authMiddleware, hostsRouter); // for top-level host updates
-
+// MCP Server (Merged on port 3000)
+app.use('/mcp', mcpServerApp);
 
 // Serve Frontend
 const frontendPath = path.resolve(__dirname, '../Frontend');
@@ -60,7 +68,7 @@ app.use(express.static(frontendPath));
 
 // Default catch-all route to serve index.html for client-side routing
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/mcp/') || req.path.startsWith('/.well-known/')) {
     return next();
   }
   res.sendFile(path.join(frontendPath, 'index.html'));
@@ -92,7 +100,6 @@ const getSslCredentials = () => {
     }
 
     if (fs.existsSync(config.sslKeyPath) && fs.existsSync(config.sslCertPath)) {
-      // TODO: Check for certificate expiration
       console.log('Found existing self-signed certificate.');
       return {
         key: fs.readFileSync(config.sslKeyPath),
@@ -123,43 +130,26 @@ const startServer = async () => {
     const credentials = getSslCredentials();
     const protocol = credentials ? 'https' : 'http';
 
-const { sseMiddleware } = require('./utils/sse');
-const { checkHostStatus } = require('./utils/status-checker');
-const db = require('./db');
-
-// ... (in startServer)
-
-    // Main App Server
+    // Main App Server (UI + API + MCP)
     const mainServer = credentials ? https.createServer(credentials, app) : http.createServer(app);
     mainServer.listen(config.port, () => {
-      console.log(`Subnet Manager UI listening on ${protocol}://localhost:${config.port}`);
-    });
-
-    // MCP Server
-    const mcpServer = credentials ? https.createServer(credentials, mcpServerApp) : http.createServer(mcpServerApp);
-    mcpServer.listen(config.mcpPort, () => {
-      console.log(`MCP Server listening on ${protocol}://localhost:${config.mcpPort}`);
+      console.log(`Subnet Manager listening on ${protocol}://localhost:${config.port}`);
+      console.log(`MCP Discovery: ${protocol}://localhost:${config.port}/.well-known/mcp`);
     });
 
     // Start background status checker
     if (config.checkEnabled) {
         console.log(`Starting background status checker (interval: ${config.checkInterval}s)`);
         setInterval(() => {
-            console.log('Running background status check...');
             db.all('SELECT * FROM hosts WHERE check_enabled = 1', [], (err, hosts) => {
                 if (err) {
                     console.error('Background check DB error:', err);
                     return;
                 }
-                // Check hosts one by one to avoid overwhelming network/system
                 hosts.forEach(checkHostStatus);
             });
         }, config.checkInterval * 1000);
     }
-
-// ... (before startServer call)
-app.use('/api/v1/events', authMiddleware, sseMiddleware);
-
 
   } catch (error) {
     console.error('Failed to start server:', error);
