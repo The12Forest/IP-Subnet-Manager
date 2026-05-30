@@ -1,7 +1,7 @@
 const express = require('express');
+const crypto = require('crypto');
 const mcpAuth = require('../middleware/mcp-auth');
 const db = require('../db');
-const { v4: uuidv4 } = require('uuid'); // I should probably avoid adding new deps if possible, using timestamp/random instead
 
 const mcpApp = express();
 mcpApp.use(express.json());
@@ -16,10 +16,9 @@ mcpApp.get('/sse', mcpAuth, (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+    const sessionId = crypto.randomUUID();
     
     // The spec requires sending the endpoint URL where Claude should POST messages
-    // This is relative to the current server
     const messageUrl = new URL('/messages', `${req.protocol}://${req.get('host')}`);
     messageUrl.searchParams.set('sessionId', sessionId);
 
