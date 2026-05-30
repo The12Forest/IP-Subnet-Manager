@@ -104,6 +104,7 @@ const getSslCredentials = () => {
     const pems = selfsigned.generate([{ name: 'commonName', value: config.hostname }], {
       days: 825,
       algorithm: 'sha256',
+      keySize: 2048,
     });
 
     fs.writeFileSync(config.sslKeyPath, pems.private);
