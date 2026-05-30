@@ -55,6 +55,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('current-user').textContent = this.state.user.username;
             }
             this.fetchAndRenderDashboard();
+            this.connectSse();
+        },
+
+        connectSse() {
+            console.log('Connecting to SSE endpoint...');
+            const evtSource = new EventSource('/api/v1/events');
+            
+            evtSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'status_update' && data.payload) {
+                        this.updateHostStatus(data.payload.hostId, data.payload.status);
+                    }
+                } catch (e) {
+                    console.error('Error parsing SSE message:', e);
+                }
+            };
+
+            evtSource.onerror = (err) => {
+                console.error('EventSource failed:', err);
+                // The browser will automatically try to reconnect.
+            };
+        },
+
+        updateHostStatus(hostId, newStatus) {
+            const hostDot = document.querySelector(`.host-row[data-host-id="${hostId}"] .status-dot`);
+            if (hostDot) {
+                hostDot.className = `status-dot ${newStatus || 'unknown'}`;
+            }
         },
 
         async fetchAndRenderDashboard() {
