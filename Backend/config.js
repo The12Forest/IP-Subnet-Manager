@@ -15,8 +15,8 @@ const config = {
 
   // HTTPS
   httpsMode: process.env.HTTPS_MODE || 'off', // off | self-signed | custom
-  sslCertPath: process.env.SSL_CERT_PATH || '/app/Certs/server.cert',
-  sslKeyPath: process.env.SSL_KEY_PATH || '/app/Certs/server.key',
+  sslCertPath: process.env.SSL_CERT_PATH || 'Certs/server.cert',
+  sslKeyPath: process.env.SSL_KEY_PATH || 'Certs/server.key',
   hostname: process.env.HOSTNAME || 'localhost',
 
   // Status Checks
