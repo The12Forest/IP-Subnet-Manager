@@ -1,0 +1,32 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Data & secrets
+Backend/data/*.db
+Backend/data/*.db-shm
+Backend/data/*.db-wal
+Certs/
+Logs/
+.env
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+
+# Editor folders
+.vscode/
+.idea/
+
+# Gemini CLI
+.gemini/
+*.gemini
