@@ -20,12 +20,35 @@ app.use(cookieParser());
 
 const authMiddleware = require('./middleware/auth');
 const adminMiddleware = require('./middleware/admin');
+const editorMiddleware = require('./middleware/editor');
 
 // API Routes
 app.use('/api/v1/setup', require('./routes/setup'));
 app.use('/api/v1/auth', require('./routes/auth'));
 app.use('/api/v1/users', authMiddleware, adminMiddleware, require('./routes/users'));
 app.use('/api/v1/settings', authMiddleware, adminMiddleware, require('./routes/settings'));
+
+const subnetsRouter = require('./routes/subnets');
+const hostsRouter = require('./routes/hosts');
+
+// Subnets can be viewed by any authenticated user
+// Mutations require editor or admin
+subnetsRouter.post('/', editorMiddleware);
+subnetsRouter.put('/:id', editorMiddleware);
+subnetsRouter.delete('/:id', adminMiddleware); // Delete is admin-only
+
+// Hosts can be viewed by any authenticated user
+// Mutations require editor or admin
+hostsRouter.post('/', editorMiddleware);
+hostsRouter.put('/:id', editorMiddleware);
+hostsRouter.delete('/:id', editorMiddleware);
+
+// Nest hosts router under subnets for creation/listing
+subnetsRouter.use('/:subnet_id/hosts', hostsRouter);
+
+app.use('/api/v1/subnets', authMiddleware, subnetsRouter);
+app.use('/api/v1/hosts', authMiddleware, hostsRouter); // for top-level host updates
+
 
 // Serve Frontend
 const frontendPath = path.resolve(__dirname, '../Frontend');
