@@ -18,9 +18,14 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
+const authMiddleware = require('./middleware/auth');
+const adminMiddleware = require('./middleware/admin');
+
 // API Routes
 app.use('/api/v1/setup', require('./routes/setup'));
 app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/users', authMiddleware, adminMiddleware, require('./routes/users'));
+app.use('/api/v1/settings', authMiddleware, adminMiddleware, require('./routes/settings'));
 
 // Serve Frontend
 const frontendPath = path.resolve(__dirname, '../Frontend');
