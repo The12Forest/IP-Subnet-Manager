@@ -27,6 +27,7 @@ app.use('/api/v1/setup', require('./routes/setup'));
 app.use('/api/v1/auth', require('./routes/auth'));
 app.use('/api/v1/users', authMiddleware, adminMiddleware, require('./routes/users'));
 app.use('/api/v1/settings', authMiddleware, adminMiddleware, require('./routes/settings'));
+app.use('/api/v1/status', authMiddleware, require('./routes/status'));
 
 const subnetsRouter = require('./routes/subnets');
 const hostsRouter = require('./routes/hosts');

@@ -23,6 +23,10 @@ router.get('/', (req, res) => {
     });
 });
 
+const { checkHostStatus } = require('../utils/status-checker');
+
+// ... (rest of the file is the same)
+
 // POST a new host to a subnet
 router.post('/', (req, res) => {
     const { subnet_id } = req.params;
@@ -38,6 +42,27 @@ router.post('/', (req, res) => {
             return res.status(500).json({ error: 'Failed to create host. IP may already exist.' });
         }
         res.status(201).json({ id: this.lastID, subnet_id, ...req.body });
+    });
+});
+
+// POST /api/v1/hosts/:id/check - Manual status check for a single host
+router.post('/:id/check', (req, res) => {
+    db.get('SELECT * FROM hosts WHERE id = ?', [req.params.id], async (err, host) => {
+        if (err) {
+            console.error(`Error finding host ${req.params.id} for check:`, err);
+            return res.status(500).json({ error: 'Database error.' });
+        }
+        if (!host) {
+            return res.status(404).json({ error: 'Host not found.' });
+        }
+
+        try {
+            const result = await checkHostStatus(host);
+            res.json(result);
+        } catch (error) {
+            console.error(`Error checking host ${req.params.id}:`, error);
+            res.status(500).json({ error: 'An error occurred while checking host status.' });
+        }
     });
 });
 
