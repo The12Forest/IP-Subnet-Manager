@@ -945,17 +945,127 @@ textarea { resize: vertical; min-height: 80px; }
 .toast.error::before   { background: var(--offline); }
 .toast.info::before    { background: var(--accent); }
 
-/* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 700px) {
-  #subnet-grid { grid-template-columns: 1fr; }
-  #stats-row   { grid-template-columns: 1fr; }
-  #settings-panel { width: 100%; }
-  .form-row { grid-template-columns: 1fr; }
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+/* Touch devices: always show card actions (no hover needed) */
+@media (hover: none) {
+  .subnet-card-actions { opacity: 1; }
 }
 
-@media (max-width: 480px) {
-  #topbar { padding: 0 12px; }
+/* Tablet — loosen the grid a bit */
+@media (max-width: 1023px) {
+  #subnet-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+/* ── Mobile (≤640px) ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  /* Topbar — hide badge, collapse user pill to avatar only */
+  #topbar {
+    gap: 8px;
+    padding: 0 14px;
+  }
+  #topbar .badge { display: none; }
+  #user-name { display: none; }
+  .user-pill {
+    padding: 3px;
+    border-radius: 50%;
+    gap: 0;
+    border-color: transparent;
+  }
+  .user-pill:hover { border-color: var(--border); }
+
+  /* Main padding */
   #app-main { padding: 12px; }
+  #toolbar { gap: 8px; }
+
+  /* Stats row — stay 3 columns but compact; no stacking */
+  #stats-row {
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat-card { padding: 10px 12px; }
+  .stat-card .stat-value { font-size: 20px; letter-spacing: -.5px; }
+  .stat-card .stat-label { font-size: 10px; }
+
+  /* Subnet grid — single column */
+  #subnet-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Settings panel — full width */
+  #settings-panel { width: 100%; }
+
+  /* Form rows — single column */
+  .form-row { grid-template-columns: 1fr; }
+
+  /* Modal — bottom sheet */
+  #modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none;
+    animation: sheetUp .2s cubic-bezier(.32,1,.56,1);
+  }
+
+  /* Wizard — tighter card */
+  .wizard-card { padding: 28px 20px; }
+
+  /* Login — tighter */
+  .login-card { padding: 24px 20px; }
+
+  /* Toast — full-width strip */
+  #toast-container {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    padding: 0 12px 12px;
+    pointer-events: none;
+  }
+  .toast { max-width: none; pointer-events: auto; }
+
+  /* Audit table — horizontal scroll */
+  #audit-panel-content { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .audit-table { min-width: 480px; }
+
+  /* Setting rows with many buttons — allow wrapping */
+  .setting-row { flex-wrap: wrap; }
+  .setting-row input,
+  .setting-row select { min-width: 0; }
+}
+
+/* ── Small mobile (≤400px) ────────────────────────────────────────────────── */
+@media (max-width: 400px) {
+  #topbar { padding: 0 10px; gap: 6px; height: 48px; }
+  #app-main { padding: 10px; }
+
+  .wizard-card { padding: 24px 14px; }
+  .login-card  { padding: 20px 14px; }
+
+  /* Compact subnet card header */
+  .subnet-card-header { padding: 9px 10px; gap: 6px; }
+  .subnet-card-header .subnet-range { font-size: 10px; }
+
+  /* Narrow IP column + hide type badge to save row space */
+  .host-ip { flex: 0 0 88px; }
+  .host-type-badge { display: none; }
+  .host-row { padding: 7px 10px; min-height: 40px; }
+
+  /* Touch-friendly inputs */
+  input, select { min-height: 40px; }
+  .btn { min-height: 38px; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(24px); opacity: .6; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
