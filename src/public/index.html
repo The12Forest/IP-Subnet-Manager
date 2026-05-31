@@ -228,7 +228,10 @@
     <div id="page-compose" class="page">
       <div class="page-toolbar">
         <h2 class="page-title">Docker Compose</h2>
-        <button class="btn btn-primary" onclick="ComposePage.openAddModal()">+ Add Compose</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="ComposePage.openAddGroupModal()">+ Group</button>
+          <button class="btn btn-primary"   onclick="ComposePage.openAddModal()">+ Add Compose</button>
+        </div>
       </div>
       <div id="compose-list"></div>
     </div>

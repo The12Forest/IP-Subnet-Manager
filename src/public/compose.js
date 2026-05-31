@@ -1,15 +1,34 @@
 'use strict';
 
 const ComposePage = {
-  _projects: [],
-  _expanded: null,
+  _projects:  [],
+  _groups:    [],
+  _expanded:  null,
+  _collapsed: new Set(), // group IDs that are collapsed
+
+  _loadCollapsed() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sm-compose-collapsed') || '[]');
+      ComposePage._collapsed = new Set(saved);
+    } catch { ComposePage._collapsed = new Set(); }
+  },
+
+  _saveCollapsed() {
+    localStorage.setItem('sm-compose-collapsed', JSON.stringify([...ComposePage._collapsed]));
+  },
 
   async load() {
     const container = document.getElementById('compose-list');
     if (!container) return;
     container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">Loading…</p>';
+    ComposePage._loadCollapsed();
     try {
-      ComposePage._projects = await fetch('/api/v1/compose').then(r => r.json());
+      const [projects, groups] = await Promise.all([
+        fetch('/api/v1/compose').then(r => r.json()),
+        fetch('/api/v1/compose/groups').then(r => r.json()),
+      ]);
+      ComposePage._projects = projects;
+      ComposePage._groups   = groups;
       ComposePage._render();
     } catch {
       container.innerHTML = '<p style="color:var(--danger);font-size:13px">Failed to load compose projects</p>';
@@ -19,7 +38,10 @@ const ComposePage = {
   _render() {
     const container = document.getElementById('compose-list');
     if (!container) return;
-    if (!ComposePage._projects.length) {
+
+    const all = ComposePage._projects;
+
+    if (!all.length && !ComposePage._groups.length) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">🐳</div>
@@ -28,8 +50,64 @@ const ComposePage = {
         </div>`;
       return;
     }
-    container.innerHTML = ComposePage._projects.map(p => ComposePage._cardHtml(p)).join('');
+
+    let html = '';
+
+    // ── Render each group ──────────────────────────────────────────────────
+    for (const g of ComposePage._groups) {
+      const gProjects   = all.filter(p => p.group_id === g.id);
+      const isCollapsed = ComposePage._collapsed.has(g.id);
+      const dot         = g.color ? `<span class="compose-group-dot" style="background:${App.esc(g.color)}"></span>` : '';
+      html += `
+        <div class="compose-group" id="compose-group-${g.id}">
+          <div class="compose-group-header" onclick="ComposePage.toggleGroup(${g.id})">
+            ${dot}
+            <span class="compose-group-name">${App.esc(g.name)}</span>
+            <span class="compose-group-count">${gProjects.length}</span>
+            <div class="compose-group-actions" onclick="event.stopPropagation()">
+              <button class="btn btn-secondary btn-sm" onclick="ComposePage.openEditGroupModal(${g.id})" title="Rename group">✎</button>
+              <button class="btn btn-danger btn-sm"    onclick="ComposePage.deleteGroup(${g.id})"         title="Delete group">×</button>
+            </div>
+            <span class="compose-chevron">${isCollapsed ? '▶' : '▼'}</span>
+          </div>
+          ${isCollapsed ? '' : `<div class="compose-group-body">
+            ${gProjects.length
+              ? gProjects.map(p => ComposePage._cardHtml(p)).join('')
+              : '<p style="color:var(--muted);font-size:12px;padding:8px 14px">No projects in this group</p>'}
+          </div>`}
+        </div>`;
+    }
+
+    // ── Ungrouped section ─────────────────────────────────────────────────
+    const ungrouped = all.filter(p => !p.group_id);
+    if (ungrouped.length) {
+      const isCollapsed = ComposePage._collapsed.has('ungrouped');
+      html += `
+        <div class="compose-group compose-group-ungrouped" id="compose-group-ungrouped">
+          <div class="compose-group-header compose-group-header--dim" onclick="ComposePage.toggleGroup('ungrouped')">
+            <span class="compose-group-name">Ungrouped</span>
+            <span class="compose-group-count">${ungrouped.length}</span>
+            <span class="compose-chevron">${isCollapsed ? '▶' : '▼'}</span>
+          </div>
+          ${isCollapsed ? '' : `<div class="compose-group-body">
+            ${ungrouped.map(p => ComposePage._cardHtml(p)).join('')}
+          </div>`}
+        </div>`;
+    }
+
+    container.innerHTML = html;
+
     if (ComposePage._expanded !== null) ComposePage._loadLinks(ComposePage._expanded);
+  },
+
+  toggleGroup(id) {
+    if (ComposePage._collapsed.has(id)) {
+      ComposePage._collapsed.delete(id);
+    } else {
+      ComposePage._collapsed.add(id);
+    }
+    ComposePage._saveCollapsed();
+    ComposePage._render();
   },
 
   _iconHtml(icon) {
@@ -90,7 +168,6 @@ const ComposePage = {
   },
 
   _linkRowsHtml(projectId, services, links, data) {
-    // ── Subnet selector ──────────────────────────────────────────────────────
     const subnetLinkedIds  = new Set((data.subnet_links || []).map(s => s.subnet_id));
     const subnetCheckboxes = App.subnets.map(s => `
       <label class="compose-subnet-check">
@@ -109,16 +186,13 @@ const ComposePage = {
       return subnetSection + '<p style="color:var(--muted);padding:12px 16px;font-size:13px">No services found — check that your YAML has a <code>services:</code> block</p>';
     }
 
-    // ── Service → host rows ──────────────────────────────────────────────────
-    const linkMap = {};
+    const linkMap  = {};
     for (const l of links) linkMap[l.service_name] = l;
 
     const allHosts = [];
     for (const [sid, d] of Object.entries(App.hosts)) {
       const subnet = App.subnets.find(s => s.id === parseInt(sid, 10));
-      for (const h of (d.hosts || [])) {
-        allHosts.push({ ...h, subnetName: subnet ? subnet.name : '' });
-      }
+      for (const h of (d.hosts || [])) allHosts.push({ ...h, subnetName: subnet ? subnet.name : '' });
     }
     allHosts.sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
 
@@ -147,9 +221,7 @@ const ComposePage = {
 
     return `<div class="compose-links-body">
       ${subnetSection}
-      <div class="compose-services-header">
-        <span class="compose-section-label">Service → IP Links</span>
-      </div>
+      <div class="compose-services-header"><span class="compose-section-label">Service → IP Links</span></div>
       ${rows}
       <div class="compose-links-footer">
         <button class="btn btn-primary btn-sm" onclick="ComposePage.saveLinks(${projectId})">Save Service Links</button>
@@ -157,13 +229,12 @@ const ComposePage = {
     </div>`;
   },
 
-  // Filter the <select> in a .compose-host-picker based on the text input
   _filterSelect(input) {
     const query  = input.value.toLowerCase();
     const select = input.closest('.compose-host-picker')?.querySelector('.compose-host-sel');
     if (!select) return;
     [...select.options].forEach(opt => {
-      if (!opt.value) return; // always show "— unlinked —"
+      if (!opt.value) return;
       opt.hidden = query.length > 0 && !opt.text.toLowerCase().includes(query);
     });
   },
@@ -171,20 +242,12 @@ const ComposePage = {
   async saveSubnets(projectId) {
     const container = document.getElementById(`compose-links-${projectId}`);
     if (!container) return;
-    const subnetIds = [...container.querySelectorAll('.compose-subnet-check input:checked')]
-      .map(cb => parseInt(cb.value, 10));
+    const ids = [...container.querySelectorAll('.compose-subnet-check input:checked')].map(cb => parseInt(cb.value, 10));
     try {
-      const res = await fetch(`/api/v1/compose/${projectId}/subnets`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(subnetIds),
-      });
-      if (!res.ok) throw new Error();
+      await fetch(`/api/v1/compose/${projectId}/subnets`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ids) });
       App.toast('Subnet links saved', 'success');
       await ComposePage.load();
-    } catch {
-      App.toast('Failed to save subnet links', 'error');
-    }
+    } catch { App.toast('Failed to save subnet links', 'error'); }
   },
 
   async saveLinks(projectId) {
@@ -195,35 +258,111 @@ const ComposePage = {
       links.push({ service_name: sel.dataset.svc, host_id: sel.value ? parseInt(sel.value, 10) : null });
     });
     try {
-      const res = await fetch(`/api/v1/compose/${projectId}/links`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(links),
-      });
+      const res = await fetch(`/api/v1/compose/${projectId}/links`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(links) });
       if (!res.ok) throw new Error();
       App.toast('Links saved', 'success');
       await ComposePage.load();
-    } catch {
-      App.toast('Failed to save links', 'error');
-    }
+    } catch { App.toast('Failed to save links', 'error'); }
   },
 
   _parseServices(yaml) {
     if (!yaml) return [];
-    const lines    = yaml.split('\n');
-    const services = [];
-    let inServices = false;
+    const lines = yaml.split('\n');
+    const svcs  = [];
+    let inSvcs  = false;
     for (const line of lines) {
-      if (/^services\s*:/.test(line)) { inServices = true; continue; }
-      if (inServices && /^\S/.test(line)) break;
-      if (inServices && /^  [a-zA-Z0-9_][a-zA-Z0-9_.:-]*\s*:/.test(line)) {
-        services.push(line.trim().replace(/:.*$/, ''));
-      }
+      if (/^services\s*:/.test(line)) { inSvcs = true; continue; }
+      if (inSvcs && /^\S/.test(line)) break;
+      if (inSvcs && /^  [a-zA-Z0-9_][a-zA-Z0-9_.:-]*\s*:/.test(line)) svcs.push(line.trim().replace(/:.*$/, ''));
     }
-    return services;
+    return svcs;
   },
 
-  // ── Modals ──────────────────────────────────────────────────────────────────
+  // ── Group modals ────────────────────────────────────────────────────────────
+
+  openAddGroupModal() {
+    App.openModal(`
+      <div class="modal-header">
+        <h3>Add Group</h3>
+        <button class="modal-close" onclick="App.closeModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label>Group Name *</label>
+        <input type="text" id="m-grp-name" placeholder="e.g. Production">
+      </div>
+      <div class="form-group">
+        <label>Color <span class="muted">(optional)</span></label>
+        <input type="color" id="m-grp-color" value="#3b82f6" style="height:36px;padding:2px 4px">
+      </div>
+      <div class="error-msg hidden" id="m-grp-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="ComposePage.saveGroup()">Add Group</button>
+      </div>
+    `);
+  },
+
+  async openEditGroupModal(id) {
+    const g = ComposePage._groups.find(g => g.id === id);
+    if (!g) return;
+    App.openModal(`
+      <div class="modal-header">
+        <h3>Edit Group</h3>
+        <button class="modal-close" onclick="App.closeModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label>Group Name *</label>
+        <input type="text" id="m-grp-name" value="${App.esc(g.name)}">
+      </div>
+      <div class="form-group">
+        <label>Color</label>
+        <input type="color" id="m-grp-color" value="${App.esc(g.color || '#3b82f6')}" style="height:36px;padding:2px 4px">
+      </div>
+      <div class="error-msg hidden" id="m-grp-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="ComposePage.saveGroup(${id})">Save</button>
+      </div>
+    `);
+  },
+
+  async saveGroup(id) {
+    const name  = document.getElementById('m-grp-name')?.value.trim();
+    const color = document.getElementById('m-grp-color')?.value;
+    const errEl = document.getElementById('m-grp-err');
+    if (!name) { errEl.textContent = 'Name is required'; errEl.classList.remove('hidden'); return; }
+    const res = await fetch(id ? `/api/v1/compose/groups/${id}` : '/api/v1/compose/groups', {
+      method:  id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, color }),
+    });
+    if (!res.ok) { const d = await res.json(); errEl.textContent = d.error || 'Failed'; errEl.classList.remove('hidden'); return; }
+    App.closeModal();
+    App.toast(id ? 'Group updated' : 'Group added', 'success');
+    ComposePage.load();
+  },
+
+  async deleteGroup(id) {
+    const g  = ComposePage._groups.find(g => g.id === id);
+    const ok = await App.confirm(
+      `Delete group <b>${App.esc(g ? g.name : id)}</b>? Projects in this group will become ungrouped.`,
+      { confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
+    await fetch(`/api/v1/compose/groups/${id}`, { method: 'DELETE' });
+    App.toast('Group deleted', 'success');
+    ComposePage.load();
+  },
+
+  // ── Project modals ──────────────────────────────────────────────────────────
+
+  _groupOptions(selectedId) {
+    const none = `<option value="">— No group —</option>`;
+    const opts = ComposePage._groups.map(g =>
+      `<option value="${g.id}" ${g.id == selectedId ? 'selected' : ''}>${App.esc(g.name)}</option>`
+    ).join('');
+    return none + opts;
+  },
 
   openAddModal() {
     App.openModal(`
@@ -240,13 +379,17 @@ const ComposePage = {
         <input type="text" id="m-cmp-desc" placeholder="Optional">
       </div>
       <div class="form-group">
+        <label>Group</label>
+        <select id="m-cmp-group">${ComposePage._groupOptions(null)}</select>
+      </div>
+      <div class="form-group">
         <label>Icon URL <span class="muted">(optional)</span></label>
         <input type="text" id="m-cmp-icon-url" placeholder="https://example.com/icon.png">
         <span class="hint">You can also upload a file after saving</span>
       </div>
       <div class="form-group">
         <label>docker-compose.yml *</label>
-        <textarea id="m-cmp-content" style="min-height:220px;font-family:monospace;font-size:12px;line-height:1.5"
+        <textarea id="m-cmp-content" style="min-height:200px;font-family:monospace;font-size:12px;line-height:1.5"
           placeholder="Paste your docker-compose.yml here…"></textarea>
       </div>
       <div class="error-msg hidden" id="m-cmp-err"></div>
@@ -262,12 +405,10 @@ const ComposePage = {
     try { data = await fetch(`/api/v1/compose/${id}`).then(r => r.json()); }
     catch { App.toast('Failed to load project', 'error'); return; }
 
-    const iconPreview = data.icon
-      ? `<img src="${App.esc(data.icon)}" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img"
-             onerror="this.style.display='none'">`
+    const iconPreview  = data.icon
+      ? `<img src="${App.esc(data.icon)}" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img" onerror="this.style.display='none'">`
       : `<span id="m-cmp-icon-preview-img" style="font-size:28px">🐳</span>`;
-    const isUploadedIcon = data.icon?.startsWith('/uploads/');
-    const urlValue       = data.icon && !isUploadedIcon ? App.esc(data.icon) : '';
+    const urlValue = data.icon && !data.icon.startsWith('/uploads/') ? App.esc(data.icon) : '';
 
     App.openModal(`
       <div class="modal-header">
@@ -281,6 +422,10 @@ const ComposePage = {
       <div class="form-group">
         <label>Description</label>
         <input type="text" id="m-cmp-desc" value="${App.esc(data.description || '')}">
+      </div>
+      <div class="form-group">
+        <label>Group</label>
+        <select id="m-cmp-group">${ComposePage._groupOptions(data.group_id)}</select>
       </div>
       <div class="form-group">
         <label>Icon</label>
@@ -298,11 +443,11 @@ const ComposePage = {
             </div>
           </div>
         </div>
-        <span class="hint">PNG, SVG, JPG, GIF · max 2 MB · URL or file upload</span>
+        <span class="hint">PNG, SVG, JPG · max 2 MB</span>
       </div>
       <div class="form-group">
         <label>docker-compose.yml *</label>
-        <textarea id="m-cmp-content" style="min-height:220px;font-family:monospace;font-size:12px;line-height:1.5">${App.esc(data.content)}</textarea>
+        <textarea id="m-cmp-content" style="min-height:200px;font-family:monospace;font-size:12px;line-height:1.5">${App.esc(data.content)}</textarea>
       </div>
       <div class="error-msg hidden" id="m-cmp-err"></div>
       <div class="modal-footer">
@@ -318,12 +463,9 @@ const ComposePage = {
     const reader = new FileReader();
     reader.onload = e => {
       const prev = document.getElementById('m-cmp-icon-preview-img');
-      if (prev) {
-        prev.outerHTML = `<img src="${e.target.result}" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img">`;
-      }
-      // Clear URL field since we're using a file
-      const urlInput = document.getElementById('m-cmp-icon-url');
-      if (urlInput) urlInput.value = '';
+      if (prev) prev.outerHTML = `<img src="${e.target.result}" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img">`;
+      const urlEl = document.getElementById('m-cmp-icon-url');
+      if (urlEl) urlEl.value = '';
     };
     reader.readAsDataURL(file);
   },
@@ -331,11 +473,7 @@ const ComposePage = {
   async _clearIcon(id) {
     const ok = await App.confirm('Remove the icon from this project?', { confirmLabel: 'Remove' });
     if (!ok) return;
-    await fetch(`/api/v1/compose/${id}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ icon: null }),
-    });
+    await fetch(`/api/v1/compose/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ icon: null }) });
     App.toast('Icon removed', 'success');
     ComposePage.openEditModal(id);
   },
@@ -345,14 +483,16 @@ const ComposePage = {
     const desc    = document.getElementById('m-cmp-desc')?.value.trim();
     const content = document.getElementById('m-cmp-content')?.value.trim();
     const iconUrl = document.getElementById('m-cmp-icon-url')?.value.trim();
+    const groupEl = document.getElementById('m-cmp-group');
+    const groupId = groupEl?.value ? parseInt(groupEl.value, 10) : null;
     const errEl   = document.getElementById('m-cmp-err');
+
     if (!name || !content) {
       errEl.textContent = 'Project name and compose content are required';
       errEl.classList.remove('hidden');
       return;
     }
-
-    const body = { name, description: desc, content };
+    const body = { name, description: desc, content, group_id: groupId };
     if (iconUrl) body.icon = iconUrl;
 
     const res = await fetch(id ? `/api/v1/compose/${id}` : '/api/v1/compose', {
@@ -366,14 +506,12 @@ const ComposePage = {
       errEl.classList.remove('hidden');
       return;
     }
-
     const saved  = await res.json();
     const newId  = saved.id || id;
     const fileEl = document.getElementById('m-cmp-icon-file');
     if (fileEl?.files[0]) {
       try { await ComposePage._uploadIcon(newId, fileEl.files[0]); } catch {}
     }
-
     App.closeModal();
     App.toast(id ? 'Project updated' : 'Project added', 'success');
     ComposePage.load();
@@ -381,9 +519,7 @@ const ComposePage = {
 
   async _uploadIcon(id, file) {
     const res = await fetch(`/api/v1/compose/${id}/icon`, {
-      method:  'POST',
-      headers: { 'Content-Type': file.type || 'image/png' },
-      body:    file,
+      method: 'POST', headers: { 'Content-Type': file.type || 'image/png' }, body: file,
     });
     if (!res.ok) { App.toast('Icon upload failed', 'error'); throw new Error(); }
     return res.json();
@@ -392,7 +528,7 @@ const ComposePage = {
   async deleteProject(id) {
     const p  = ComposePage._projects.find(p => p.id === id);
     const ok = await App.confirm(
-      `Delete <b>${App.esc(p ? p.name : id)}</b> and all its service links? This cannot be undone.`,
+      `Delete <b>${App.esc(p ? p.name : id)}</b> and all its links? This cannot be undone.`,
       { confirmLabel: 'Delete', danger: true }
     );
     if (!ok) return;
