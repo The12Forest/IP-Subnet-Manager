@@ -342,6 +342,33 @@ const TOOLS = [
     },
   },
   {
+    name: 'bulk_add_hosts',
+    description: 'Add multiple hosts/containers to a subnet in one operation. Duplicate IPs are skipped, not errored. Returns a summary of added, skipped, and failed entries.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subnet_id: { type: 'number', description: 'Target subnet ID for all hosts' },
+        hosts: {
+          type: 'array',
+          description: 'Array of hosts to add',
+          items: {
+            type: 'object',
+            properties: {
+              ip:          { type: 'string',  description: 'IP address (required)' },
+              name:        { type: 'string',  description: 'Display name' },
+              description: { type: 'string',  description: 'Short description' },
+              type:        { type: 'string',  description: 'container | server | reserved | other (default: container)' },
+              check_port:  { type: 'number',  description: 'TCP port to monitor (omit for ICMP ping)' },
+              notes:       { type: 'string',  description: 'Free-form notes' },
+            },
+            required: ['ip'],
+          },
+        },
+      },
+      required: ['subnet_id', 'hosts'],
+    },
+  },
+  {
     name: 'get_settings',
     description: 'Get all application settings',
     inputSchema: { type: 'object', properties: {}, required: [] },
@@ -476,6 +503,58 @@ async function callTool(name, args) {
         if (!s) return toolError(`Subnet not found: ${args.id}`);
         db.prepare('DELETE FROM subnets WHERE id = ?').run(args.id);
         return toolResult({ removed: args.id });
+      }
+
+      case 'bulk_add_hosts': {
+        const subnet = db.prepare('SELECT * FROM subnets WHERE id = ?').get(args.subnet_id);
+        if (!subnet) return toolError(`Subnet not found: ${args.subnet_id}`);
+        if (!Array.isArray(args.hosts) || args.hosts.length === 0) {
+          return toolError('hosts must be a non-empty array');
+        }
+
+        const insertStmt = db.prepare(`
+          INSERT OR IGNORE INTO hosts
+            (subnet_id, ip, name, description, type, notes, check_port, check_enabled, last_status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'unknown', datetime('now'), datetime('now'))
+        `);
+
+        const added   = [];
+        const skipped = [];
+        const failed  = [];
+
+        const run = db.transaction(() => {
+          for (const h of args.hosts) {
+            if (!h.ip) { failed.push({ ip: '?', reason: 'ip is required' }); continue; }
+            try {
+              const r = insertStmt.run(
+                args.subnet_id,
+                h.ip,
+                h.name        || null,
+                h.description || null,
+                h.type        || 'container',
+                h.notes       || null,
+                h.check_port  || null,
+              );
+              if (r.changes === 0) {
+                skipped.push({ ip: h.ip, reason: 'IP already exists' });
+              } else {
+                added.push({ id: r.lastInsertRowid, ip: h.ip, name: h.name || null });
+              }
+            } catch (err) {
+              failed.push({ ip: h.ip, reason: err.message });
+            }
+          }
+        });
+
+        run();
+
+        return toolResult({
+          subnet:  subnet.name,
+          added:   added.length,
+          skipped: skipped.length,
+          failed:  failed.length,
+          details: { added, skipped, failed },
+        });
       }
 
       case 'get_settings':

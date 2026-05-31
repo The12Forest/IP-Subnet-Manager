@@ -213,14 +213,15 @@ const SettingsPanel = {
       if (idEl)     idEl.value     = SettingsPanel._get('mcp_oauth_client_id')     || 'claude-client';
       if (secretEl) secretEl.value = SettingsPanel._get('mcp_oauth_client_secret') || '';
 
-      // Build the MCP URL from the current browser host with the MCP port
+      // Fetch version + actual running ports + MCP token (token only returned for admins)
+      const about = await fetch('/api/v1/settings/about').then(r => r.json()).catch(() => ({}));
+
+      // Build MCP URL using the actual running MCP port from the server
       if (urlEl) {
-        const mcpPort = SettingsPanel._get('mcp_port') || '3001';
+        const mcpPort = about.mcp_port || 3001;
         urlEl.value = `${window.location.protocol}//${window.location.hostname}:${mcpPort}/mcp`;
       }
 
-      // Fetch version + MCP token (token only returned for admins)
-      const about = await fetch('/api/v1/settings/about').then(r => r.json()).catch(() => ({}));
       const versionEl = document.getElementById('about-version');
       if (versionEl) versionEl.textContent = `v${about.version || 'dev'}`;
 

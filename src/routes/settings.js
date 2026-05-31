@@ -71,7 +71,11 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 router.get('/about', requireAuth, (req, res) => {
-  const result = { version: process.env.APP_VERSION || 'dev' };
+  const result = {
+    version:  process.env.APP_VERSION || 'dev',
+    port:     config.PORT,
+    mcp_port: config.MCP_PORT,
+  };
   if (req.user.role === 'admin') result.mcp_token = config.MCP_TOKEN || '';
   res.json(result);
 });
