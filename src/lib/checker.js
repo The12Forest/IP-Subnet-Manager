@@ -59,9 +59,14 @@ async function checkHost(host) {
   return newStatus;
 }
 
-const checkEnabledHosts = db.prepare('SELECT * FROM hosts WHERE check_enabled = 1');
+const checkEnabledHosts  = db.prepare('SELECT * FROM hosts WHERE check_enabled = 1');
+const getCheckEnabledSetting = db.prepare("SELECT value FROM settings WHERE key='check_enabled'");
 
 async function startCheckerCycle() {
+  // Respect the DB setting so UI toggles take effect without restart
+  const row = getCheckEnabledSetting.get();
+  if (row && row.value === 'false') return;
+
   const hosts = checkEnabledHosts.all();
   for (const host of hosts) {
     try {

@@ -7,6 +7,7 @@ const crypto  = require('crypto');
 const jwt     = require('jsonwebtoken');
 const db      = require('../db/schema');
 const config  = require('../config');
+const { isValidIPv4, ipInSubnet } = require('../lib/ipUtils');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -76,6 +77,15 @@ app.post('/oauth/register', (req, res) => {
   });
 });
 
+function isSafeRedirectUri(uri) {
+  try {
+    const url = new URL(uri);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 // Authorization endpoint — auto-approves (this is your personal server)
 app.get('/oauth/authorize', (req, res) => {
   const {
@@ -89,6 +99,9 @@ app.get('/oauth/authorize', (req, res) => {
 
   if (!redirect_uri) {
     return res.status(400).send('<h2>Missing redirect_uri</h2>');
+  }
+  if (!isSafeRedirectUri(redirect_uri)) {
+    return res.status(400).send('<h2>Invalid redirect_uri — must be http or https</h2>');
   }
   if (response_type !== 'code') {
     return res.status(400).send('<h2>Only response_type=code is supported</h2>');
@@ -439,17 +452,28 @@ async function callTool(name, args) {
       }
 
       case 'add_host': {
-        const r = db.prepare(`
-          INSERT INTO hosts (subnet_id, ip, name, description, check_port, check_enabled, last_status, created_at)
-          VALUES (?, ?, ?, ?, ?, 1, 'unknown', datetime('now'))
-        `).run(args.subnet_id, args.ip, args.name || null, args.description || null, args.check_port || null);
-        return toolResult(db.prepare('SELECT * FROM hosts WHERE id = ?').get(r.lastInsertRowid));
+        if (!args.ip || !isValidIPv4(args.ip)) return toolError(`Invalid IP address: ${args.ip}`);
+        const subnet = db.prepare('SELECT * FROM subnets WHERE id = ?').get(args.subnet_id);
+        if (!subnet) return toolError(`Subnet not found: ${args.subnet_id}`);
+        if (!ipInSubnet(args.ip, subnet.network, subnet.cidr)) {
+          return toolError(`IP ${args.ip} is not within subnet ${subnet.network}/${subnet.cidr}`);
+        }
+        try {
+          const r = db.prepare(`
+            INSERT INTO hosts (subnet_id, ip, name, description, check_port, check_enabled, last_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, 'unknown', datetime('now'), datetime('now'))
+          `).run(args.subnet_id, args.ip, args.name || null, args.description || null, args.check_port || null);
+          return toolResult(db.prepare('SELECT * FROM hosts WHERE id = ?').get(r.lastInsertRowid));
+        } catch (err) {
+          if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`IP ${args.ip} is already in use`);
+          throw err;
+        }
       }
 
       case 'update_host': {
         const host = db.prepare('SELECT * FROM hosts WHERE ip = ?').get(args.ip);
         if (!host) return toolError(`Host not found: ${args.ip}`);
-        db.prepare('UPDATE hosts SET name=?, description=?, check_port=?, notes=? WHERE ip=?').run(
+        db.prepare("UPDATE hosts SET name=?, description=?, check_port=?, notes=?, updated_at=datetime('now') WHERE ip=?").run(
           args.name        !== undefined ? args.name        : host.name,
           args.description !== undefined ? args.description : host.description,
           args.check_port  !== undefined ? args.check_port  : host.check_port,
@@ -698,6 +722,9 @@ function start(port, tlsOpts) {
   server.listen(port, config.BIND_HOST, () => {
     const proto = tlsOpts ? 'https' : 'http';
     const creds = getOAuthCredentials();
+    if (!creds.clientSecret) {
+      console.warn('[mcp] WARNING: MCP_OAUTH_CLIENT_SECRET is not set — any client can obtain a token without a secret. Set it in Settings → About or via environment variable.');
+    }
     console.log(`[mcp] Server listening on ${config.BIND_HOST}:${port}`);
     console.log(`[mcp] ─────────────────────────────────────────────`);
     console.log(`[mcp] Claude.ai web integration:`);

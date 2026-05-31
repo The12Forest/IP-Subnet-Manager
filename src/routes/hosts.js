@@ -65,7 +65,7 @@ router.post('/', requireAuth, requireRole('admin', 'editor'), (req, res) => {
       name || null, description || null, notes || null,
       type || 'container',
       check_port ? parseInt(check_port, 10) : null,
-      check_enabled === false || check_enabled === 0 ? 0 : 1
+      check_enabled === false || check_enabled === 0 || check_enabled === '0' || check_enabled === 'false' ? 0 : 1
     );
     const host = getHostById.get(result.lastInsertRowid);
     audit(req.user, 'create', 'host', host.id, { after: host });
@@ -92,7 +92,7 @@ router.put('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) => {
     notes       !== undefined ? notes       : existing.notes,
     type        !== undefined ? type        : existing.type,
     check_port  !== undefined ? (check_port ? parseInt(check_port, 10) : null) : existing.check_port,
-    check_enabled !== undefined ? (check_enabled ? 1 : 0) : existing.check_enabled,
+    check_enabled !== undefined ? (check_enabled === false || check_enabled === 0 || check_enabled === '0' || check_enabled === 'false' ? 0 : 1) : existing.check_enabled,
     id
   );
   const updated = getHostById.get(id);

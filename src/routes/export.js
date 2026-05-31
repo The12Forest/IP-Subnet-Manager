@@ -71,8 +71,8 @@ router.post('/import/json', requireAuth, requireRole('admin'), (req, res) => {
 
   const doImport = db.transaction(() => {
     for (const s of subnets) {
-      insertSubnet.run(s.name, s.network, s.cidr || 24, s.description || '', s.color || null, s.display_order || 0, s.created_at || new Date().toISOString());
-      imported.subnets++;
+      const r = insertSubnet.run(s.name, s.network, s.cidr || 24, s.description || '', s.color || null, s.display_order || 0, s.created_at || new Date().toISOString());
+      if (r.changes > 0) imported.subnets++;
     }
 
     if (Array.isArray(hosts)) {
@@ -83,12 +83,12 @@ router.post('/import/json', requireAuth, requireRole('admin'), (req, res) => {
         if (subnetRow) subnetId = subnetRow.id;
 
         if (!subnetId) continue;
-        insertHost.run(
+        const r = insertHost.run(
           subnetId, h.ip, h.name || null, h.description || null, h.notes || null,
           h.type || 'container', h.check_port || null, h.check_enabled !== 0 ? 1 : 0,
           h.created_at || new Date().toISOString()
         );
-        imported.hosts++;
+        if (r.changes > 0) imported.hosts++;
       }
     }
   });

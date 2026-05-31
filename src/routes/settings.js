@@ -48,13 +48,17 @@ function getEnvValue(key) {
   return (envKey in process.env) ? process.env[envKey] : null;
 }
 
-function enrichSetting(row) {
-  const envValue = getEnvValue(row.key);
+const SENSITIVE_KEYS = new Set(['mcp_oauth_client_secret']);
+
+function enrichSetting(row, userRole) {
+  const envValue  = getEnvValue(row.key);
+  const redact    = SENSITIVE_KEYS.has(row.key) && userRole !== 'admin';
   return {
     ...row,
-    env_value:        envValue,                         // null if not set via env
-    from_env:         envValue !== null && row.value === envValue, // currently using env value
-    has_env:          envValue !== null,                // env var exists
+    value:     redact ? '' : row.value,
+    env_value: redact ? null : envValue,
+    from_env:  !redact && envValue !== null && row.value === envValue,
+    has_env:   envValue !== null,
   };
 }
 
@@ -67,7 +71,7 @@ const upsertSetting = db.prepare(`
 `);
 
 router.get('/', requireAuth, (req, res) => {
-  res.json(listSettings.all().map(enrichSetting));
+  res.json(listSettings.all().map(r => enrichSetting(r, req.user.role)));
 });
 
 router.get('/about', requireAuth, (req, res) => {
@@ -83,7 +87,7 @@ router.get('/about', requireAuth, (req, res) => {
 router.get('/:key', requireAuth, (req, res) => {
   const row = getSetting.get(req.params.key);
   if (!row) return res.status(404).json({ error: 'Setting not found' });
-  res.json(enrichSetting(row));
+  res.json(enrichSetting(row, req.user.role));
 });
 
 router.put('/:key', requireAuth, requireRole('admin'), (req, res) => {
@@ -114,12 +118,17 @@ router.delete('/:key/override', requireAuth, requireRole('admin'), (req, res) =>
   res.json(enrichSetting(getSetting.get(key)));
 });
 
-// Bulk update
+// Bulk update — only known keys accepted
+const ALLOWED_KEYS = new Set(Object.keys(ENV_KEY_MAP).concat([
+  'setup_complete', 'mcp_enabled', 'base_network', 'base_cidr', 'app_name', 'theme_default',
+]));
+
 router.put('/', requireAuth, requireRole('admin'), (req, res) => {
   const updates = req.body || {};
   const results = {};
   const bulkUpdate = db.transaction(() => {
     for (const [key, value] of Object.entries(updates)) {
+      if (!ALLOWED_KEYS.has(key)) continue;
       upsertSetting.run(key, String(value));
       audit(req.user, 'update', 'setting', key, { after: String(value) });
       results[key] = String(value);

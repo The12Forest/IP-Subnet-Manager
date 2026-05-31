@@ -77,18 +77,21 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
     }
   }
 
-  updateUser.run(
-    username ? username.trim() : existing.username,
-    role || existing.role,
-    id
-  );
-
-  if (password) {
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-    updatePass.run(bcrypt.hashSync(password, 10), id);
+  // Validate password length BEFORE any DB write so we never commit a partial update
+  if (password && password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
+
+  db.transaction(() => {
+    updateUser.run(
+      username ? username.trim() : existing.username,
+      role || existing.role,
+      id
+    );
+    if (password) {
+      updatePass.run(bcrypt.hashSync(password, 10), id);
+    }
+  })();
 
   const updated = getUser.get(id);
   audit(req.user, 'update', 'user', id, {
