@@ -389,17 +389,18 @@ const TOOLS = [
       required: ['subnet_id', 'hosts'],
     },
   },
+  // ── Compose ──────────────────────────────────────────────────────────────
   {
     name: 'list_compose_projects',
-    description: 'List all Docker Compose projects with their linked subnets and service counts',
+    description: 'List all Docker Compose projects with their network group and linked service count',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'get_compose_project',
-    description: 'Get a Compose project by ID — includes full YAML content, service→host links, and subnet links',
+    description: 'Get a Compose project by ID — includes YAML content and service→host links',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'number', description: 'Compose project ID' } },
+      properties: { id: { type: 'number' } },
       required: ['id'],
     },
   },
@@ -409,33 +410,34 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        name:        { type: 'string', description: 'Project name' },
-        description: { type: 'string' },
-        content:     { type: 'string', description: 'Raw docker-compose.yml YAML content' },
-        icon:        { type: 'string', description: 'URL to an icon image (png, svg, etc.)' },
-        subnet_ids:  { type: 'array', items: { type: 'number' }, description: 'Subnet IDs to link to this project' },
+        name:              { type: 'string', description: 'Project name' },
+        description:       { type: 'string' },
+        content:           { type: 'string', description: 'Raw docker-compose.yml YAML' },
+        icon_url:          { type: 'string', description: 'Image URL for the project icon (server will download and cache it)' },
+        display_subnet_id: { type: 'number', description: 'Subnet ID to group this project under' },
       },
       required: ['name', 'content'],
     },
   },
   {
     name: 'update_compose_project',
-    description: 'Update a Compose project name, description, YAML content, or icon',
+    description: 'Update a Compose project — name, description, YAML, icon URL, or network group',
     inputSchema: {
       type: 'object',
       properties: {
-        id:          { type: 'number' },
-        name:        { type: 'string' },
-        description: { type: 'string' },
-        content:     { type: 'string' },
-        icon:        { type: 'string', description: 'URL to an icon image, or null to remove' },
+        id:                { type: 'number' },
+        name:              { type: 'string' },
+        description:       { type: 'string' },
+        content:           { type: 'string' },
+        icon_url:          { type: 'string', description: 'New icon URL (server downloads and caches it), or null to remove' },
+        display_subnet_id: { type: 'number', description: 'Subnet ID to group this project under, or null to ungroup' },
       },
       required: ['id'],
     },
   },
   {
     name: 'remove_compose_project',
-    description: 'Delete a Compose project and all its service/subnet links',
+    description: 'Delete a Compose project and all its service links',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'number' } },
@@ -444,7 +446,7 @@ const TOOLS = [
   },
   {
     name: 'set_compose_service_links',
-    description: 'Link compose services to host IPs. Replaces all existing service links for the project.',
+    description: 'Link compose service names to host IPs. Replaces all existing service links.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -464,16 +466,103 @@ const TOOLS = [
       required: ['compose_id', 'links'],
     },
   },
+
+  // ── Domains ───────────────────────────────────────────────────────────────
   {
-    name: 'set_compose_subnet_links',
-    description: 'Associate a Compose project with one or more subnets. Replaces existing subnet links.',
+    name: 'list_domains',
+    description: 'List all domains with their record counts and network group',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_domain',
+    description: 'Get a domain by ID with all its DNS records',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'add_domain',
+    description: 'Create a new domain',
     inputSchema: {
       type: 'object',
       properties: {
-        compose_id: { type: 'number' },
-        subnet_ids: { type: 'array', items: { type: 'number' } },
+        name:              { type: 'string', description: 'Primary domain name, e.g. example.com' },
+        description:       { type: 'string' },
+        display_subnet_id: { type: 'number', description: 'Subnet ID to group this domain under' },
       },
-      required: ['compose_id', 'subnet_ids'],
+      required: ['name'],
+    },
+  },
+  {
+    name: 'update_domain',
+    description: 'Update a domain name, description, or network group',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id:                { type: 'number' },
+        name:              { type: 'string' },
+        description:       { type: 'string' },
+        display_subnet_id: { type: 'number', description: 'Subnet ID to group this domain under, or null to ungroup' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'remove_domain',
+    description: 'Delete a domain and all its DNS records',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'add_domain_record',
+    description: 'Add a DNS record to a domain. For A/AAAA records link a host; for CNAME/MX/TXT/NS provide a value string.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain_id:   { type: 'number' },
+        name:        { type: 'string', description: 'Subdomain prefix or @ for root (e.g. "www", "api", "@")' },
+        record_type: { type: 'string', description: 'A | AAAA | CNAME | MX | TXT | NS | SRV | CAA' },
+        host_id:     { type: 'number', description: 'Link to an existing host IP (for A/AAAA records)' },
+        value:       { type: 'string', description: 'Record value for CNAME/MX/TXT/NS records' },
+        priority:    { type: 'number', description: 'Priority for MX/SRV records' },
+        notes:       { type: 'string' },
+      },
+      required: ['domain_id', 'record_type'],
+    },
+  },
+  {
+    name: 'update_domain_record',
+    description: 'Update an existing DNS record',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        record_id:   { type: 'number' },
+        domain_id:   { type: 'number', description: 'Required to verify ownership' },
+        name:        { type: 'string' },
+        record_type: { type: 'string' },
+        host_id:     { type: 'number' },
+        value:       { type: 'string' },
+        priority:    { type: 'number' },
+        notes:       { type: 'string' },
+      },
+      required: ['record_id', 'domain_id'],
+    },
+  },
+  {
+    name: 'remove_domain_record',
+    description: 'Delete a DNS record',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        record_id: { type: 'number' },
+        domain_id: { type: 'number', description: 'Required to verify ownership' },
+      },
+      required: ['record_id', 'domain_id'],
     },
   },
   {
@@ -676,15 +765,15 @@ async function callTool(name, args) {
         });
       }
 
+      // ── Compose ────────────────────────────────────────────────────────────
       case 'list_compose_projects': {
         const rows = db.prepare(`
-          SELECT cp.id, cp.name, cp.description, cp.updated_at,
-                 COUNT(DISTINCT CASE WHEN csl.host_id IS NOT NULL THEN csl.id END) AS linked_count,
-                 GROUP_CONCAT(DISTINCT s.name) AS subnet_names
+          SELECT cp.id, cp.name, cp.description, cp.icon_url, cp.display_subnet_id, cp.updated_at,
+                 s.name AS display_subnet_name,
+                 COUNT(DISTINCT CASE WHEN csl.host_id IS NOT NULL THEN csl.id END) AS linked_count
           FROM compose_projects cp
-          LEFT JOIN compose_service_links csl  ON csl.compose_id = cp.id
-          LEFT JOIN compose_subnet_links  csnl ON csnl.compose_id = cp.id
-          LEFT JOIN subnets s                  ON s.id = csnl.subnet_id
+          LEFT JOIN subnets s              ON s.id           = cp.display_subnet_id
+          LEFT JOIN compose_service_links csl ON csl.compose_id = cp.id
           GROUP BY cp.id ORDER BY cp.updated_at DESC
         `).all();
         return toolResult(rows);
@@ -698,37 +787,36 @@ async function callTool(name, args) {
           FROM compose_service_links csl LEFT JOIN hosts h ON h.id = csl.host_id
           WHERE csl.compose_id = ? ORDER BY csl.service_name
         `).all(args.id);
-        const subnetLinks = db.prepare(`
-          SELECT s.id, s.name, s.network, s.cidr
-          FROM compose_subnet_links csnl JOIN subnets s ON s.id = csnl.subnet_id
-          WHERE csnl.compose_id = ?
-        `).all(args.id);
-        return toolResult({ ...p, links, subnet_links: subnetLinks });
+        return toolResult({ ...p, links });
       }
 
       case 'add_compose_project': {
+        const { cacheIcon: _ci } = require('../lib/iconCache');
         const r = db.prepare(`
-          INSERT INTO compose_projects (name, description, content, icon, created_at, updated_at)
-          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
-        `).run(args.name, args.description || null, args.content, args.icon || null);
+          INSERT INTO compose_projects (name, description, content, icon_url, display_subnet_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(args.name, args.description || null, args.content, args.icon_url || null, args.display_subnet_id || null);
         const newId = r.lastInsertRowid;
-        if (Array.isArray(args.subnet_ids)) {
-          const ins = db.prepare('INSERT OR IGNORE INTO compose_subnet_links (compose_id, subnet_id) VALUES (?, ?)');
-          db.transaction(() => { for (const sid of args.subnet_ids) ins.run(newId, sid); })();
-        }
+        if (args.icon_url) _ci(newId, args.icon_url).catch(() => {});
         return toolResult(db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(newId));
       }
 
       case 'update_compose_project': {
         const p = db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id);
         if (!p) return toolError(`Compose project not found: ${args.id}`);
-        db.prepare(`UPDATE compose_projects SET name=?, description=?, content=?, icon=?, updated_at=datetime('now') WHERE id=?`).run(
-          args.name        !== undefined ? args.name        : p.name,
-          args.description !== undefined ? args.description : p.description,
-          args.content     !== undefined ? args.content     : p.content,
-          args.icon        !== undefined ? args.icon        : p.icon,
+        const newIconUrl = args.icon_url !== undefined ? (args.icon_url || null) : p.icon_url;
+        db.prepare(`UPDATE compose_projects SET name=?, description=?, content=?, icon_url=?, display_subnet_id=?, updated_at=datetime('now') WHERE id=?`).run(
+          args.name              !== undefined ? args.name              : p.name,
+          args.description       !== undefined ? args.description       : p.description,
+          args.content           !== undefined ? args.content           : p.content,
+          newIconUrl,
+          args.display_subnet_id !== undefined ? (args.display_subnet_id || null) : p.display_subnet_id,
           args.id
         );
+        if (newIconUrl && newIconUrl !== p.icon_url) {
+          const { cacheIcon: _ci } = require('../lib/iconCache');
+          _ci(args.id, newIconUrl).catch(() => {});
+        }
         return toolResult(db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id));
       }
 
@@ -758,21 +846,101 @@ async function callTool(name, args) {
         return toolResult({ compose_id: args.compose_id, links: updated });
       }
 
-      case 'set_compose_subnet_links': {
-        const p = db.prepare('SELECT id FROM compose_projects WHERE id = ?').get(args.compose_id);
-        if (!p) return toolError(`Compose project not found: ${args.compose_id}`);
-        const delSub = db.prepare('DELETE FROM compose_subnet_links WHERE compose_id = ?');
-        const insSub = db.prepare('INSERT OR IGNORE INTO compose_subnet_links (compose_id, subnet_id) VALUES (?, ?)');
-        db.transaction(() => {
-          delSub.run(args.compose_id);
-          for (const sid of (args.subnet_ids || [])) insSub.run(args.compose_id, sid);
-        })();
-        const updated = db.prepare(`
-          SELECT s.id, s.name, s.network, s.cidr
-          FROM compose_subnet_links csnl JOIN subnets s ON s.id = csnl.subnet_id
-          WHERE csnl.compose_id = ?
-        `).all(args.compose_id);
-        return toolResult({ compose_id: args.compose_id, subnet_links: updated });
+      // ── Domains ─────────────────────────────────────────────────────────────
+      case 'list_domains': {
+        const rows = db.prepare(`
+          SELECT d.id, d.name, d.description, d.display_subnet_id, d.updated_at,
+                 s.name AS display_subnet_name,
+                 COUNT(dr.id) AS record_count
+          FROM domains d
+          LEFT JOIN subnets        s  ON s.id = d.display_subnet_id
+          LEFT JOIN domain_records dr ON dr.domain_id = d.id
+          GROUP BY d.id ORDER BY d.name ASC
+        `).all();
+        return toolResult(rows);
+      }
+
+      case 'get_domain': {
+        const d = db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id);
+        if (!d) return toolError(`Domain not found: ${args.id}`);
+        const records = db.prepare(`
+          SELECT dr.id, dr.name, dr.record_type, dr.host_id, dr.value, dr.priority, dr.notes,
+                 h.ip AS host_ip, h.name AS host_name, h.last_status
+          FROM domain_records dr LEFT JOIN hosts h ON h.id = dr.host_id
+          WHERE dr.domain_id = ? ORDER BY dr.record_type, dr.name
+        `).all(args.id);
+        return toolResult({ ...d, records });
+      }
+
+      case 'add_domain': {
+        const valid_types = new Set(['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA']);
+        if (!args.name) return toolError('name is required');
+        try {
+          const r = db.prepare(`INSERT INTO domains (name, description, display_subnet_id, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))`).run(args.name.trim(), args.description || null, args.display_subnet_id || null);
+          return toolResult(db.prepare('SELECT * FROM domains WHERE id = ?').get(r.lastInsertRowid));
+        } catch (err) {
+          if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`Domain already exists: ${args.name}`);
+          throw err;
+        }
+      }
+
+      case 'update_domain': {
+        const d = db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id);
+        if (!d) return toolError(`Domain not found: ${args.id}`);
+        try {
+          db.prepare(`UPDATE domains SET name=?, description=?, display_subnet_id=?, updated_at=datetime('now') WHERE id=?`).run(
+            args.name              !== undefined ? args.name.trim()            : d.name,
+            args.description       !== undefined ? args.description            : d.description,
+            args.display_subnet_id !== undefined ? (args.display_subnet_id || null) : d.display_subnet_id,
+            args.id
+          );
+        } catch (err) {
+          if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`Domain name already exists: ${args.name}`);
+          throw err;
+        }
+        return toolResult(db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id));
+      }
+
+      case 'remove_domain': {
+        const d = db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id);
+        if (!d) return toolError(`Domain not found: ${args.id}`);
+        db.prepare('DELETE FROM domains WHERE id = ?').run(args.id);
+        return toolResult({ removed: args.id, name: d.name });
+      }
+
+      case 'add_domain_record': {
+        const d = db.prepare('SELECT id FROM domains WHERE id = ?').get(args.domain_id);
+        if (!d) return toolError(`Domain not found: ${args.domain_id}`);
+        const allowedTypes = new Set(['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA']);
+        const type = (args.record_type || 'A').toUpperCase();
+        if (!allowedTypes.has(type)) return toolError(`Invalid record type: ${args.record_type}`);
+        const r = db.prepare(`INSERT INTO domain_records (domain_id, name, record_type, host_id, value, priority, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
+          args.domain_id, (args.name || '@').trim(), type,
+          args.host_id || null, args.value || null, args.priority || null, args.notes || null
+        );
+        return toolResult(db.prepare('SELECT * FROM domain_records WHERE id = ?').get(r.lastInsertRowid));
+      }
+
+      case 'update_domain_record': {
+        const rec = db.prepare('SELECT * FROM domain_records WHERE id = ?').get(args.record_id);
+        if (!rec || rec.domain_id !== args.domain_id) return toolError(`Record not found: ${args.record_id}`);
+        db.prepare('UPDATE domain_records SET name=?, record_type=?, host_id=?, value=?, priority=?, notes=? WHERE id=?').run(
+          args.name        !== undefined ? (args.name.trim() || '@')       : rec.name,
+          args.record_type !== undefined ? args.record_type.toUpperCase()  : rec.record_type,
+          args.host_id     !== undefined ? (args.host_id || null)          : rec.host_id,
+          args.value       !== undefined ? (args.value || null)            : rec.value,
+          args.priority    !== undefined ? (args.priority || null)         : rec.priority,
+          args.notes       !== undefined ? (args.notes || null)            : rec.notes,
+          args.record_id
+        );
+        return toolResult(db.prepare('SELECT * FROM domain_records WHERE id = ?').get(args.record_id));
+      }
+
+      case 'remove_domain_record': {
+        const rec = db.prepare('SELECT * FROM domain_records WHERE id = ?').get(args.record_id);
+        if (!rec || rec.domain_id !== args.domain_id) return toolError(`Record not found: ${args.record_id}`);
+        db.prepare('DELETE FROM domain_records WHERE id = ?').run(args.record_id);
+        return toolResult({ removed: args.record_id });
       }
 
       case 'get_settings':

@@ -305,6 +305,11 @@ body {
   border-radius: 50%;
   object-fit: cover;
 }
+.user-email-dot {
+  font-size: 10px;
+  color: var(--accent);
+  cursor: default;
+}
 .user-avatar-letter {
   background: var(--accent);
   color: #fff;

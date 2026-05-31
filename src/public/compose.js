@@ -141,13 +141,13 @@ const ComposePage = {
     try {
       const data     = await fetch(`/api/v1/compose/${id}`).then(r => r.json());
       const services = ComposePage._parseServices(data.content);
-      container.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || []);
+      container.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || [], data);
     } catch {
       container.innerHTML = '<p style="color:var(--danger);padding:12px 16px;font-size:13px">Failed to load services</p>';
     }
   },
 
-  _linkRowsHtml(projectId, services, links) {
+  _linkRowsHtml(projectId, services, links, data) {
     if (!services.length) {
       return '<p style="color:var(--muted);padding:12px 16px;font-size:13px">No services found in this compose file</p>';
     }

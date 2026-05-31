@@ -30,7 +30,7 @@ const UsersPanel = {
         <tr>
           <td style="width:36px">${avatar}</td>
           <td>${App.esc(u.username)}</td>
-          <td style="color:var(--muted);font-size:12px">${u.email ? App.esc(u.email) : '—'}</td>
+          <td title="${u.email ? App.esc(u.email) : ''}">${u.email ? `<span class="user-email-dot" title="${App.esc(u.email)}">●</span>` : ''}</td>
           <td><span class="action-badge ${u.role === 'admin' ? 'create' : u.role === 'editor' ? 'update' : ''}">${u.role}</span></td>
           <td style="white-space:nowrap">${u.last_login ? new Date(u.last_login).toLocaleDateString() : '—'}</td>
           <td>
@@ -46,7 +46,7 @@ const UsersPanel = {
       </div>
       <table class="audit-table">
         <thead>
-          <tr><th></th><th>Username</th><th>Email</th><th>Role</th><th>Last Login</th><th></th></tr>
+          <tr><th></th><th>Username</th><th title="Email set">@</th><th>Role</th><th>Last Login</th><th></th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
