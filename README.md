@@ -73,7 +73,7 @@ Find your token in **Settings → About** in the web UI. See [docs/MCP.md](docs/
 
 | Method | File | Description |
 |--------|------|-------------|
-| Pull from GHCR | [docker-compose.yml](docker-compose.yml) | Edit and replace `GITHUB_USERNAME` |
+| Pull from GHCR | [docker-compose.yml](docker-compose.yml) | `ghcr.io/the12forest/subnet-manager:latest` |
 | Build locally | [docker-compose.build.yml](docker-compose.build.yml) | Builds from source |
 
 See [docs/SETUP.md](docs/SETUP.md) for HTTPS setup, reverse proxy examples (Nginx/Traefik/Caddy), and GHCR publishing.

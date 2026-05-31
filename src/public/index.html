@@ -39,11 +39,23 @@
         <div class="form-group">
           <label>CIDR Prefix</label>
           <select id="wiz-cidr">
-            <option value="16">/16 (65534 hosts)</option>
+            <option value="8">/8 (16,777,214 hosts)</option>
+            <option value="12">/12 (1,048,574 hosts)</option>
+            <option value="16">/16 (65,534 hosts)</option>
+            <option value="17">/17 (32,766 hosts)</option>
+            <option value="18">/18 (16,382 hosts)</option>
+            <option value="19">/19 (8,190 hosts)</option>
+            <option value="20">/20 (4,094 hosts)</option>
+            <option value="21">/21 (2,046 hosts)</option>
+            <option value="22">/22 (1,022 hosts)</option>
+            <option value="23">/23 (510 hosts)</option>
             <option value="24" selected>/24 (254 hosts)</option>
             <option value="25">/25 (126 hosts)</option>
             <option value="26">/26 (62 hosts)</option>
+            <option value="27">/27 (30 hosts)</option>
             <option value="28">/28 (14 hosts)</option>
+            <option value="29">/29 (6 hosts)</option>
+            <option value="30">/30 (2 hosts)</option>
           </select>
         </div>
       </div>
@@ -145,7 +157,7 @@
     <!-- Toolbar -->
     <div id="toolbar">
       <input type="text" id="search-input" placeholder="Search by IP or name…" oninput="App.onSearch(this.value)">
-      <button class="btn btn-primary btn-sm" onclick="App.openAddSubnetModal()">+ Subnet</button>
+      <button class="btn btn-primary" onclick="App.openAddSubnetModal()">+ Subnet</button>
     </div>
 
     <!-- Subnet grid -->
@@ -214,6 +226,23 @@
         <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveSecurity()">Save</button>
       </div>
       <div class="panel-section">
+        <h4>Server Ports <span class="muted">(requires restart)</span></h4>
+        <div class="form-group">
+          <label id="label-port">Web UI Port</label>
+          <div class="setting-row">
+            <input type="number" id="set-port" min="1" max="65535" placeholder="3000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="label-mcp-port">MCP Server Port</label>
+          <div class="setting-row">
+            <input type="number" id="set-mcp-port" min="1" max="65535" placeholder="3001">
+          </div>
+        </div>
+        <span class="hint" style="display:block;margin-bottom:10px">In Docker you must also update the port mapping in docker-compose.yml</span>
+        <button class="btn btn-primary btn-sm" onclick="SettingsPanel.savePorts()">Save Ports</button>
+      </div>
+      <div class="panel-section">
         <h4>Export &amp; Import</h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <a class="btn btn-secondary btn-sm" href="/api/v1/export/json" download>Export JSON</a>
@@ -279,20 +308,71 @@
     <!-- About tab -->
     <div class="tab-content" id="tab-about">
       <div class="panel-section">
-        <h4>MCP Server</h4>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">
-          Built-in MCP server for Claude integration.<br>
-          Port: <span class="mono" id="mcp-port">3001</span>
-        </p>
+        <h4>Claude.ai Integration — Setup Steps</h4>
+        <ol style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:2;padding-left:18px">
+          <li>Expose port <code style="font-family:monospace;background:var(--card2);padding:1px 5px;border-radius:3px">3001</code> publicly (tunnel, reverse proxy, or port forward)</li>
+          <li>Open <b style="color:var(--text2)">claude.ai → Settings → Integrations → Add integration</b></li>
+          <li>Paste the MCP URL and enter the OAuth Client ID &amp; Secret below</li>
+          <li>Click <b style="color:var(--text2)">Add</b> — Claude will connect and list available tools</li>
+        </ol>
+
         <div class="form-group">
-          <label>Bearer Token</label>
-          <div class="token-box" id="mcp-token">—</div>
-          <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('mcp-token').textContent).then(()=>App.toast('Token copied','success'))">Copy Token</button>
+          <label>MCP URL</label>
+          <div class="setting-row">
+            <input type="text" id="about-mcp-url" readonly placeholder="https://your-host:3001/mcp" style="font-family:monospace;font-size:12px">
+            <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('about-mcp-url').value).then(()=>App.toast('Copied','success'))">Copy</button>
+          </div>
+          <span class="hint">Replace with your public domain or tunnel URL</span>
+        </div>
+
+        <div class="form-group">
+          <label>OAuth Client ID</label>
+          <div class="setting-row">
+            <input type="text" id="about-oauth-id">
+            <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('about-oauth-id').value).then(()=>App.toast('Copied','success'))">Copy</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>OAuth Client Secret</label>
+          <div class="setting-row">
+            <input type="password" id="about-oauth-secret" placeholder="Set a strong secret">
+            <button class="btn btn-secondary btn-sm" onclick="SettingsPanel.toggleSecret()">Show</button>
+            <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('about-oauth-secret').value).then(()=>App.toast('Copied','success'))">Copy</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveMcpCredentials()">Save Credentials</button>
+          <button class="btn btn-secondary btn-sm" onclick="SettingsPanel.generateSecret()">Generate Secret</button>
         </div>
       </div>
+
+      <!-- Bearer token — admin only, shown via JS -->
+      <div class="panel-section" id="about-bearer-section" style="display:none">
+        <h4>Bearer Token (Claude Desktop / API)</h4>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+          For Claude Desktop or direct API access, add this token as <code style="font-family:monospace;background:var(--card2);padding:1px 5px;border-radius:3px">Authorization: Bearer &lt;token&gt;</code>.
+          Set a persistent token via the <code style="font-family:monospace;background:var(--card2);padding:1px 5px;border-radius:3px">MCP_TOKEN</code> environment variable.
+        </p>
+        <div class="token-box" id="about-mcp-token" style="user-select:all;cursor:pointer;word-break:break-all"
+             onclick="navigator.clipboard.writeText(this.textContent.trim()).then(()=>App.toast('Token copied','success'))"
+             title="Click to copy">—</div>
+        <span class="hint">Click the token box to copy</span>
+      </div>
+
       <div class="panel-section">
-        <h4>Version</h4>
-        <p style="font-size:13px;color:var(--muted)">Subnet Manager v1.0.0</p>
+        <h4>About</h4>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">
+          Subnet Manager <span id="about-version" style="color:var(--muted)">…</span>
+        </p>
+        <a href="https://github.com/The12Forest/Subnet-Manager" target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--accent);text-decoration:none">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          github.com/The12Forest/Subnet-Manager
+        </a>
       </div>
     </div>
 

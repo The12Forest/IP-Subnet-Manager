@@ -15,7 +15,11 @@ const defaults = [
   { key: 'base_network',     value: '',               description: 'Base network address configured during setup' },
   { key: 'base_cidr',        value: '24',             description: 'Default subnet CIDR prefix' },
   { key: 'network_mode',     value: 'bridge',         description: 'Network mode label: macvlan, ipvlan, bridge, host' },
-  { key: 'bind_host',        value: '0.0.0.0',        description: 'Host/IP to bind the server to (requires restart)' },
+  { key: 'bind_host',             value: '0.0.0.0',      description: 'Host/IP to bind the server to (requires restart)' },
+  { key: 'port',                  value: '3000',          description: 'Web UI port (requires restart; Docker users must also update port mapping)' },
+  { key: 'mcp_port',              value: '3001',          description: 'MCP server port (requires restart; Docker users must also update port mapping)' },
+  { key: 'mcp_oauth_client_id',  value: 'claude-client', description: 'OAuth Client ID for claude.ai MCP integration' },
+  { key: 'mcp_oauth_client_secret', value: '',            description: 'OAuth Client Secret for claude.ai MCP integration' },
 ];
 
 const insert = db.prepare(

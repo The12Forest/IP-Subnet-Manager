@@ -1,9 +1,8 @@
 # Production compose — pulls image from GitHub Container Registry
-# Replace GITHUB_USERNAME with your actual GitHub username (lowercase)
 
 services:
   subnet-manager:
-    image: ghcr.io/GITHUB_USERNAME/subnet-manager:latest
+    image: ghcr.io/the12forest/subnet-manager:latest
     container_name: subnet-manager
     restart: unless-stopped
     ports:
@@ -16,6 +15,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required — copy .env.example to .env}
       - JWT_EXPIRY=${JWT_EXPIRY:-7d}
       - MCP_TOKEN=${MCP_TOKEN:-}
+      - PORT=${PORT:-3000}
+      - MCP_PORT=${MCP_PORT:-3001}
       - HTTPS_MODE=${HTTPS_MODE:-off}
       - SSL_CERT_PATH=${SSL_CERT_PATH:-/app/data/certs/cert.pem}
       - SSL_KEY_PATH=${SSL_KEY_PATH:-/app/data/certs/key.pem}

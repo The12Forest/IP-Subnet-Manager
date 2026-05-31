@@ -176,10 +176,20 @@ function extractClientCredentials(req) {
   return { clientId: req.body.client_id, clientSecret: req.body.client_secret };
 }
 
+function getOAuthCredentials() {
+  // DB settings take priority over env/config (live-editable from the UI)
+  const idRow     = db.prepare("SELECT value FROM settings WHERE key='mcp_oauth_client_id'").get();
+  const secretRow = db.prepare("SELECT value FROM settings WHERE key='mcp_oauth_client_secret'").get();
+  return {
+    clientId:     (idRow     && idRow.value)     || config.MCP_OAUTH_CLIENT_ID,
+    clientSecret: (secretRow && secretRow.value) || config.MCP_OAUTH_CLIENT_SECRET,
+  };
+}
+
 function validateClient(clientId, clientSecret) {
-  const okId = clientId === config.MCP_OAUTH_CLIENT_ID;
-  // If no secret is configured, skip secret check (public client / PKCE only)
-  const okSecret = !config.MCP_OAUTH_CLIENT_SECRET || clientSecret === config.MCP_OAUTH_CLIENT_SECRET;
+  const creds = getOAuthCredentials();
+  const okId     = clientId === creds.clientId;
+  const okSecret = !creds.clientSecret || clientSecret === creds.clientSecret;
   return okId && okSecret;
 }
 
@@ -608,13 +618,14 @@ function start(port, tlsOpts) {
 
   server.listen(port, config.BIND_HOST, () => {
     const proto = tlsOpts ? 'https' : 'http';
-    const base  = `${proto}://<your-public-url>`;
+    const creds = getOAuthCredentials();
     console.log(`[mcp] Server listening on ${config.BIND_HOST}:${port}`);
     console.log(`[mcp] ─────────────────────────────────────────────`);
     console.log(`[mcp] Claude.ai web integration:`);
-    console.log(`[mcp]   MCP URL:            ${base}/mcp`);
-    console.log(`[mcp]   OAuth Client ID:    ${config.MCP_OAUTH_CLIENT_ID}`);
-    console.log(`[mcp]   OAuth Client Secret:${config.MCP_OAUTH_CLIENT_SECRET || '(not set — set MCP_OAUTH_CLIENT_SECRET in .env)'}`);
+    console.log(`[mcp]   MCP URL:             ${proto}://<your-public-url>/mcp`);
+    console.log(`[mcp]   OAuth Client ID:     ${creds.clientId}`);
+    console.log(`[mcp]   OAuth Client Secret: ${creds.clientSecret || '(not set)'}`);
+    console.log(`[mcp]   Settings → About tab shows full setup info`);
     console.log(`[mcp] ─────────────────────────────────────────────`);
   });
 

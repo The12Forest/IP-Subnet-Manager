@@ -1,7 +1,4 @@
 #!/bin/bash
-git pull
-
-
 set -euo pipefail
 
 REGISTRY="ghcr.io"

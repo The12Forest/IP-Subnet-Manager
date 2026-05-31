@@ -2,6 +2,7 @@
 
 const express     = require('express');
 const db          = require('../db/schema');
+const config      = require('../config');
 const audit       = require('../lib/audit');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/admin');
@@ -10,28 +11,36 @@ const router = express.Router();
 
 // Map setting keys to their env var names
 const ENV_KEY_MAP = {
-  app_name:        'APP_NAME',
-  bind_host:       'BIND_HOST',
-  check_interval:  'CHECK_INTERVAL',
-  check_enabled:   'CHECK_ENABLED',
-  check_timeout:   'CHECK_TIMEOUT',
-  max_users:       'MAX_USERS',
-  session_timeout: 'SESSION_TIMEOUT',
-  network_mode:    'NETWORK_MODE',
-  theme_default:   'THEME_DEFAULT',
+  app_name:               'APP_NAME',
+  bind_host:              'BIND_HOST',
+  port:                   'PORT',
+  mcp_port:               'MCP_PORT',
+  check_interval:         'CHECK_INTERVAL',
+  check_enabled:          'CHECK_ENABLED',
+  check_timeout:          'CHECK_TIMEOUT',
+  max_users:              'MAX_USERS',
+  session_timeout:        'SESSION_TIMEOUT',
+  network_mode:           'NETWORK_MODE',
+  theme_default:          'THEME_DEFAULT',
+  mcp_oauth_client_id:    'MCP_OAUTH_CLIENT_ID',
+  mcp_oauth_client_secret:'MCP_OAUTH_CLIENT_SECRET',
 };
 
 // Map setting keys to their seed defaults (fallback when no env or DB override)
 const SEED_DEFAULTS = {
-  app_name:        'Subnet Manager',
-  bind_host:       '0.0.0.0',
-  check_interval:  '60',
-  check_enabled:   'true',
-  check_timeout:   '2000',
-  max_users:       '0',
-  session_timeout: '3600',
-  network_mode:    'bridge',
-  theme_default:   'dark',
+  app_name:               'Subnet Manager',
+  bind_host:              '0.0.0.0',
+  port:                   '3000',
+  mcp_port:               '3001',
+  check_interval:         '60',
+  check_enabled:          'true',
+  check_timeout:          '2000',
+  max_users:              '0',
+  session_timeout:        '3600',
+  network_mode:           'bridge',
+  theme_default:          'dark',
+  mcp_oauth_client_id:    'claude-client',
+  mcp_oauth_client_secret:'',
 };
 
 function getEnvValue(key) {
@@ -59,6 +68,12 @@ const upsertSetting = db.prepare(`
 
 router.get('/', requireAuth, (req, res) => {
   res.json(listSettings.all().map(enrichSetting));
+});
+
+router.get('/about', requireAuth, (req, res) => {
+  const result = { version: process.env.APP_VERSION || 'dev' };
+  if (req.user.role === 'admin') result.mcp_token = config.MCP_TOKEN || '';
+  res.json(result);
 });
 
 router.get('/:key', requireAuth, (req, res) => {

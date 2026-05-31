@@ -16,6 +16,7 @@ Certs/
 # Logs
 *.log
 Logs/
+LOG/
 
 # OS-specific
 .DS_Store

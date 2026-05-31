@@ -8,8 +8,18 @@ const express      = require('express');
 const cookieParser = require('cookie-parser');
 
 const config = require('./config');
-require('./db/schema');
+const db = require('./db/schema');
 require('./db/seed');
+
+// For users without env vars set, read PORT/MCP_PORT from DB so UI changes take effect
+if (!process.env.PORT) {
+  const row = db.prepare("SELECT value FROM settings WHERE key='port'").get();
+  if (row && row.value) config.PORT = parseInt(row.value, 10) || 3000;
+}
+if (!process.env.MCP_PORT) {
+  const row = db.prepare("SELECT value FROM settings WHERE key='mcp_port'").get();
+  if (row && row.value) config.MCP_PORT = parseInt(row.value, 10) || 3001;
+}
 
 const authRouter     = require('./routes/auth');
 const wizardRouter   = require('./routes/wizard');

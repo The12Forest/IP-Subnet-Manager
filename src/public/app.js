@@ -165,16 +165,13 @@ const App = {
 
     if (filtered.length === 0) {
       grid.innerHTML = q
-        ? `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><h3>No results</h3><p>No subnets or hosts match "${query}"</p></div>`
-        : `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🌐</div><h3>No subnets yet</h3><p>Click <b>+ Subnet</b> to add your first subnet</p></div>`;
-
-      if (!q) {
-        const addCard = document.createElement('div');
-        addCard.className = 'add-subnet-card';
-        addCard.innerHTML = '+ Add your first subnet';
-        addCard.onclick = () => App.openAddSubnetModal();
-        grid.appendChild(addCard);
-      }
+        ? `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><h3>No results</h3><p>No subnets or hosts match "${App.esc(query)}"</p></div>`
+        : `<div class="empty-state" style="grid-column:1/-1">
+             <div class="empty-icon">🌐</div>
+             <h3>No subnets yet</h3>
+             <p>Get started by adding your first subnet</p>
+             <button class="btn btn-primary" style="margin-top:20px" onclick="App.openAddSubnetModal()">+ Add your first subnet</button>
+           </div>`;
       return;
     }
 
@@ -347,13 +344,7 @@ const App = {
         </div>
         <div class="form-group">
           <label>CIDR</label>
-          <select id="m-subnet-cidr">
-            <option value="16">/16</option>
-            <option value="24" selected>/24</option>
-            <option value="25">/25</option>
-            <option value="26">/26</option>
-            <option value="28">/28</option>
-          </select>
+          <select id="m-subnet-cidr">${App._cidrOptions(24)}</select>
         </div>
       </div>
       <div class="form-group">
@@ -392,9 +383,7 @@ const App = {
         </div>
         <div class="form-group">
           <label>CIDR</label>
-          <select id="m-subnet-cidr">
-            ${[16,24,25,26,28].map(v => `<option value="${v}" ${s.cidr == v ? 'selected' : ''}>/${v}</option>`).join('')}
-          </select>
+          <select id="m-subnet-cidr">${App._cidrOptions(s.cidr)}</select>
         </div>
       </div>
       <div class="form-group">
@@ -626,6 +615,15 @@ const App = {
       el.classList.remove('show');
       setTimeout(() => el.remove(), 250);
     }, 3000);
+  },
+
+  // ── CIDR select helper ────────────────────────────────────────────────────
+
+  _cidrOptions(selected) {
+    const cidrs = [8,12,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+    return cidrs.map(v =>
+      `<option value="${v}" ${v == selected ? 'selected' : ''}>/${v}</option>`
+    ).join('');
   },
 
   // ── IP utilities ─────────────────────────────────────────────────────────

@@ -48,6 +48,7 @@ const SettingsPanel = {
     const keys = [
       'app_name', 'bind_host', 'theme_default',
       'max_users', 'session_timeout',
+      'port', 'mcp_port',
       'check_interval', 'check_timeout', 'check_enabled',
       'network_mode',
     ];
@@ -156,6 +157,22 @@ const SettingsPanel = {
     await SettingsPanel._save({ network_mode: mode }, 'Network mode saved');
   },
 
+  async savePorts() {
+    const port    = document.getElementById('set-port').value.trim();
+    const mcpPort = document.getElementById('set-mcp-port').value.trim();
+    if (!port || !mcpPort) { App.toast('Both ports are required', 'error'); return; }
+
+    const ok = await App.confirm(
+      `<b>Changing ports requires a server restart.</b><br><br>` +
+      `If you are running in Docker you must <b>also update the port mapping</b> in <code>docker-compose.yml</code> before restarting.<br><br>` +
+      `<span style="color:var(--danger)">⚠ If the new port is inaccessible (wrong mapping, firewall, etc.) you will lose access and cannot revert through the UI.</span>`,
+      { confirmLabel: 'Change Ports', danger: true }
+    );
+    if (!ok) return;
+
+    await SettingsPanel._save({ port, mcp_port: mcpPort }, 'Port settings saved — restart required');
+  },
+
   async loadAudit() {
     const container = document.getElementById('audit-panel-content');
     container.innerHTML = '<p style="color:var(--muted);font-size:13px">Loading…</p>';
@@ -185,15 +202,60 @@ const SettingsPanel = {
   },
 
   async loadAbout() {
-    // Show MCP OAuth info from config (settings About tab)
     try {
-      const rows = await fetch('/api/v1/settings').then(r => r.json());
-      const mcpTokenEl = document.getElementById('mcp-token');
-      // MCP token is shown in the log; display OAuth client ID here
-      if (mcpTokenEl) {
-        mcpTokenEl.textContent = '(see server startup log for Bearer token)';
+      if (!SettingsPanel._settings || !Object.keys(SettingsPanel._settings).length) {
+        await SettingsPanel.load();
+      }
+      const idEl     = document.getElementById('about-oauth-id');
+      const secretEl = document.getElementById('about-oauth-secret');
+      const urlEl    = document.getElementById('about-mcp-url');
+
+      if (idEl)     idEl.value     = SettingsPanel._get('mcp_oauth_client_id')     || 'claude-client';
+      if (secretEl) secretEl.value = SettingsPanel._get('mcp_oauth_client_secret') || '';
+
+      // Build the MCP URL from the current browser host with the MCP port
+      if (urlEl) {
+        const mcpPort = SettingsPanel._get('mcp_port') || '3001';
+        urlEl.value = `${window.location.protocol}//${window.location.hostname}:${mcpPort}/mcp`;
+      }
+
+      // Fetch version + MCP token (token only returned for admins)
+      const about = await fetch('/api/v1/settings/about').then(r => r.json()).catch(() => ({}));
+      const versionEl = document.getElementById('about-version');
+      if (versionEl) versionEl.textContent = `v${about.version || 'dev'}`;
+
+      const bearerSection = document.getElementById('about-bearer-section');
+      const tokenEl       = document.getElementById('about-mcp-token');
+      if (about.mcp_token && bearerSection && tokenEl) {
+        bearerSection.style.display = '';
+        tokenEl.textContent = about.mcp_token;
       }
     } catch { /* ignore */ }
+  },
+
+  toggleSecret() {
+    const el = document.getElementById('about-oauth-secret');
+    if (el) el.type = el.type === 'password' ? 'text' : 'password';
+  },
+
+  generateSecret() {
+    const chars  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const secret = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+      .map(b => chars[b % chars.length]).join('');
+    const el = document.getElementById('about-oauth-secret');
+    if (el) { el.value = secret; el.type = 'text'; }
+    App.toast('New secret generated — click Save Credentials to apply', 'info');
+  },
+
+  async saveMcpCredentials() {
+    const id     = (document.getElementById('about-oauth-id')?.value     || '').trim();
+    const secret = (document.getElementById('about-oauth-secret')?.value || '').trim();
+    if (!id) { App.toast('Client ID cannot be empty', 'error'); return; }
+
+    await SettingsPanel._save(
+      { mcp_oauth_client_id: id, mcp_oauth_client_secret: secret },
+      'MCP credentials saved — takes effect immediately'
+    );
   },
 
   async importJSON(input) {

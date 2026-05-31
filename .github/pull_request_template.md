@@ -5,5 +5,5 @@
 ## Checklist
 - [ ] Tested locally
 - [ ] No TypeScript or build step introduced
-- [ ] Docs updated if needed
+- [ ] Docs updated
 - [ ] CHANGELOG.md updated
