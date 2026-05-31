@@ -1111,6 +1111,37 @@ textarea { resize: vertical; min-height: 80px; }
 /* Offline alerts */
 #dash-alerts { padding: 4px 0; }
 
+.dash-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.dash-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dash-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background .1s;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dash-summary-row:last-child { border-bottom: none; }
+.dash-summary-row:hover       { background: var(--card2); }
+.dash-summary-icon  { font-size: 14px; flex: 0 0 auto; }
+.dash-summary-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.dash-summary-meta  { font-size: 11px; color: var(--muted); flex: 0 0 auto; white-space: nowrap; }
+
 .dash-actions {
   display: flex;
   gap: 10px;
@@ -1473,6 +1504,9 @@ body.light .compose-card { box-shadow: 0 1px 3px rgba(15,23,42,.06); }
     grid-template-columns: 1fr;
     gap: 10px;
   }
+
+  /* Dashboard two-column → single column */
+  .dash-two-col { grid-template-columns: 1fr; }
 
   /* Settings panel — full width */
   #settings-panel { width: 100%; }

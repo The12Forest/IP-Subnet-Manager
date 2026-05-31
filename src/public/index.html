@@ -200,6 +200,23 @@
         <div id="dash-alerts"></div>
       </div>
 
+      <div class="dash-two-col">
+        <div class="dash-section">
+          <div class="dash-section-header">
+            <h3>Docker Compose <span class="dash-count" id="dash-compose-count"></span></h3>
+            <button class="btn btn-secondary btn-sm" onclick="App.page('compose')">View all</button>
+          </div>
+          <div id="dash-compose-list"></div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-header">
+            <h3>Domains <span class="dash-count" id="dash-domains-count"></span></h3>
+            <button class="btn btn-secondary btn-sm" onclick="App.page('domains')">View all</button>
+          </div>
+          <div id="dash-domains-list"></div>
+        </div>
+      </div>
+
       <div class="dash-actions">
         <button class="btn btn-secondary" onclick="App.page('network')">View Network</button>
         <button class="btn btn-primary" onclick="DashboardPage.checkAll()">Run Check Now</button>

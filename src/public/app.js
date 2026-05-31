@@ -716,12 +716,14 @@ const App = {
 
 const DashboardPage = {
   render() {
+    // Count hosts — if check_enabled is false, always treat as unknown
     let online = 0, offline = 0, unknown = 0;
     for (const d of Object.values(App.hosts)) {
       for (const h of (d.hosts || [])) {
-        if      (h.last_status === 'online')  online++;
-        else if (h.last_status === 'offline') offline++;
-        else                                  unknown++;
+        if (!h.check_enabled)              { unknown++; continue; }
+        if (h.last_status === 'online')    { online++;  continue; }
+        if (h.last_status === 'offline')   { offline++; continue; }
+        unknown++;
       }
     }
 
@@ -730,20 +732,22 @@ const DashboardPage = {
     set('dash-offline', offline);
     set('dash-unknown', unknown);
 
-    // Heatmap
+    // Heatmap — disabled check → always show as unknown dot
     const heatmap = document.getElementById('dash-heatmap');
     if (heatmap) {
       if (!App.subnets.length) {
         heatmap.innerHTML = '<p style="color:var(--muted);font-size:13px">No hosts yet — add a subnet first</p>';
       } else {
         heatmap.innerHTML = App.subnets.map(s => {
-          const d = App.hosts[s.id] || { hosts: [] };
+          const d      = App.hosts[s.id] || { hosts: [] };
           const sorted = [...d.hosts].sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
-          const dots = sorted.map(h =>
-            `<span class="hmap-dot ${h.last_status || 'unknown'}" id="hmap-dot-${h.id}"
-               title="${App.esc(h.ip)}${h.name ? ' — ' + App.esc(h.name) : ''}"
-               onclick="App.openEditHostModal(${h.id})"></span>`
-          ).join('');
+          const dots   = sorted.map(h => {
+            const st    = h.check_enabled ? (h.last_status || 'unknown') : 'unknown';
+            const label = `${h.ip}${h.name ? ' — ' + h.name : ''}${!h.check_enabled ? ' (check disabled)' : ''}`;
+            return `<span class="hmap-dot ${st}" id="hmap-dot-${h.id}"
+               title="${App.esc(label)}"
+               onclick="App.openEditHostModal(${h.id})"></span>`;
+          }).join('');
           return `<div class="hmap-row">
             <span class="hmap-subnet-label" title="${App.esc(s.name)}">${App.esc(s.name)}</span>
             <div class="hmap-dots">${dots || '<span style="color:var(--muted);font-size:11px;font-style:italic">empty</span>'}</div>
@@ -752,14 +756,16 @@ const DashboardPage = {
       }
     }
 
-    // Offline alerts
+    // Offline alerts — skip hosts with checks disabled (they can't be truly offline)
     const alerts = document.getElementById('dash-alerts');
     if (alerts) {
       const offlineHosts = [];
       for (const [sid, d] of Object.entries(App.hosts)) {
         const subnet = App.subnets.find(s => s.id === parseInt(sid, 10));
         for (const h of (d.hosts || [])) {
-          if (h.last_status === 'offline') offlineHosts.push({ ...h, subnetName: subnet?.name || '' });
+          if (h.check_enabled && h.last_status === 'offline') {
+            offlineHosts.push({ ...h, subnetName: subnet?.name || '' });
+          }
         }
       }
       offlineHosts.sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
@@ -775,17 +781,65 @@ const DashboardPage = {
           </div>`).join('');
       }
     }
+
+    // Load compose + domains async (don't block the synchronous render)
+    DashboardPage._loadCompose();
+    DashboardPage._loadDomains();
+  },
+
+  async _loadCompose() {
+    const el = document.getElementById('dash-compose-list');
+    if (!el) return;
+    try {
+      const projects = await fetch('/api/v1/compose').then(r => r.json());
+      const countEl  = document.getElementById('dash-compose-count');
+      if (countEl) countEl.textContent = projects.length ? `(${projects.length})` : '';
+      if (!projects.length) {
+        el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">No compose projects yet</p>';
+        return;
+      }
+      el.innerHTML = projects.map(p => `
+        <div class="dash-summary-row" onclick="App.page('compose')" title="Go to Compose">
+          <span class="dash-summary-icon">🐳</span>
+          <span class="dash-summary-name">${App.esc(p.name)}</span>
+          <span class="dash-summary-meta">${p.linked_count} linked${p.display_subnet_name ? ' · ' + App.esc(p.display_subnet_name) : ''}</span>
+        </div>`).join('');
+    } catch {
+      const el2 = document.getElementById('dash-compose-list');
+      if (el2) el2.innerHTML = '<p style="color:var(--muted);font-size:12px">—</p>';
+    }
+  },
+
+  async _loadDomains() {
+    const el = document.getElementById('dash-domains-list');
+    if (!el) return;
+    try {
+      const domains = await fetch('/api/v1/domains').then(r => r.json());
+      const countEl = document.getElementById('dash-domains-count');
+      if (countEl) countEl.textContent = domains.length ? `(${domains.length})` : '';
+      if (!domains.length) {
+        el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">No domains yet</p>';
+        return;
+      }
+      el.innerHTML = domains.map(d => `
+        <div class="dash-summary-row" onclick="App.page('domains')" title="Go to Domains">
+          <span class="dash-summary-icon">⊕</span>
+          <span class="dash-summary-name mono">${App.esc(d.name)}</span>
+          <span class="dash-summary-meta">${d.record_count} subdomain${d.record_count !== 1 ? 's' : ''}</span>
+        </div>`).join('');
+    } catch {
+      const el2 = document.getElementById('dash-domains-list');
+      if (el2) el2.innerHTML = '<p style="color:var(--muted);font-size:12px">—</p>';
+    }
   },
 
   onStatusUpdate(hostId, status) {
-    // Update heatmap dot in-place
+    const page = document.getElementById('page-dashboard');
+    if (!page || !page.classList.contains('active')) return;
+    // Update heatmap dot in-place (respects check_enabled via the class already set at render)
     const dot = document.getElementById(`hmap-dot-${hostId}`);
     if (dot) dot.className = `hmap-dot ${status}`;
-    // Re-render counts and offline list only if dashboard is active
-    const page = document.getElementById('page-dashboard');
-    if (page && page.classList.contains('active')) {
-      DashboardPage.render();
-    }
+    DashboardPage.render();
   },
 
   checkAll() {
