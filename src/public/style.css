@@ -1095,6 +1095,45 @@ textarea { resize: vertical; min-height: 80px; }
   margin-bottom: 8px;
 }
 
+/* ── Backups ─────────────────────────────────────────────────────────────────── */
+.backup-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.backup-list-header h4 { margin: 0; }
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.backup-row:last-child { border-bottom: none; }
+.backup-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.backup-size {
+  color: var(--muted);
+  flex: 0 0 52px;
+  text-align: right;
+  font-size: 11px;
+}
+.backup-date {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.backup-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+
 /* ── Docker Compose ──────────────────────────────────────────────────────────── */
 .compose-card {
   background: var(--card);
@@ -1150,6 +1189,54 @@ textarea { resize: vertical; min-height: 80px; }
   font-size: 12px;
   padding: 5px 8px;
 }
+.compose-subnet-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.compose-subnet-chip {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(59,130,246,.12);
+  border: 1px solid rgba(59,130,246,.25);
+  color: var(--accent);
+}
+
+.compose-subnet-section {
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card2);
+}
+.compose-services-header {
+  padding: 8px 14px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.compose-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+.compose-subnet-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.compose-subnet-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  transition: border-color .15s;
+}
+.compose-subnet-check:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(59,130,246,.06);
+}
+.compose-subnet-check input { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent); }
+.compose-subnet-range { color: var(--muted); font-size: 10px; }
+
 .compose-linked-ip {
   font-size: 11px;
   color: var(--muted);

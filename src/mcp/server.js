@@ -382,6 +382,91 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_compose_projects',
+    description: 'List all Docker Compose projects with their linked subnets and service counts',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_compose_project',
+    description: 'Get a Compose project by ID — includes full YAML content, service→host links, and subnet links',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'number', description: 'Compose project ID' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'add_compose_project',
+    description: 'Create a new Docker Compose project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name:        { type: 'string', description: 'Project name' },
+        description: { type: 'string' },
+        content:     { type: 'string', description: 'Raw docker-compose.yml YAML content' },
+        subnet_ids:  { type: 'array', items: { type: 'number' }, description: 'Subnet IDs to link to this project' },
+      },
+      required: ['name', 'content'],
+    },
+  },
+  {
+    name: 'update_compose_project',
+    description: 'Update a Compose project name, description, or YAML content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id:          { type: 'number' },
+        name:        { type: 'string' },
+        description: { type: 'string' },
+        content:     { type: 'string' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'remove_compose_project',
+    description: 'Delete a Compose project and all its service/subnet links',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'set_compose_service_links',
+    description: 'Link compose services to host IPs. Replaces all existing service links for the project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        compose_id: { type: 'number' },
+        links: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              service_name: { type: 'string' },
+              host_id:      { type: 'number', description: 'Host DB id (use list_hosts to find IDs)' },
+            },
+            required: ['service_name'],
+          },
+        },
+      },
+      required: ['compose_id', 'links'],
+    },
+  },
+  {
+    name: 'set_compose_subnet_links',
+    description: 'Associate a Compose project with one or more subnets. Replaces existing subnet links.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        compose_id: { type: 'number' },
+        subnet_ids: { type: 'array', items: { type: 'number' } },
+      },
+      required: ['compose_id', 'subnet_ids'],
+    },
+  },
+  {
     name: 'get_settings',
     description: 'Get all application settings',
     inputSchema: { type: 'object', properties: {}, required: [] },
@@ -579,6 +664,104 @@ async function callTool(name, args) {
           failed:  failed.length,
           details: { added, skipped, failed },
         });
+      }
+
+      case 'list_compose_projects': {
+        const rows = db.prepare(`
+          SELECT cp.id, cp.name, cp.description, cp.updated_at,
+                 COUNT(DISTINCT CASE WHEN csl.host_id IS NOT NULL THEN csl.id END) AS linked_count,
+                 GROUP_CONCAT(DISTINCT s.name) AS subnet_names
+          FROM compose_projects cp
+          LEFT JOIN compose_service_links csl  ON csl.compose_id = cp.id
+          LEFT JOIN compose_subnet_links  csnl ON csnl.compose_id = cp.id
+          LEFT JOIN subnets s                  ON s.id = csnl.subnet_id
+          GROUP BY cp.id ORDER BY cp.updated_at DESC
+        `).all();
+        return toolResult(rows);
+      }
+
+      case 'get_compose_project': {
+        const p = db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id);
+        if (!p) return toolError(`Compose project not found: ${args.id}`);
+        const links = db.prepare(`
+          SELECT csl.service_name, csl.host_id, h.ip, h.name AS host_name, h.last_status
+          FROM compose_service_links csl LEFT JOIN hosts h ON h.id = csl.host_id
+          WHERE csl.compose_id = ? ORDER BY csl.service_name
+        `).all(args.id);
+        const subnetLinks = db.prepare(`
+          SELECT s.id, s.name, s.network, s.cidr
+          FROM compose_subnet_links csnl JOIN subnets s ON s.id = csnl.subnet_id
+          WHERE csnl.compose_id = ?
+        `).all(args.id);
+        return toolResult({ ...p, links, subnet_links: subnetLinks });
+      }
+
+      case 'add_compose_project': {
+        const r = db.prepare(`
+          INSERT INTO compose_projects (name, description, content, created_at, updated_at)
+          VALUES (?, ?, ?, datetime('now'), datetime('now'))
+        `).run(args.name, args.description || null, args.content);
+        const newId = r.lastInsertRowid;
+        if (Array.isArray(args.subnet_ids)) {
+          const ins = db.prepare('INSERT OR IGNORE INTO compose_subnet_links (compose_id, subnet_id) VALUES (?, ?)');
+          db.transaction(() => { for (const sid of args.subnet_ids) ins.run(newId, sid); })();
+        }
+        return toolResult(db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(newId));
+      }
+
+      case 'update_compose_project': {
+        const p = db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id);
+        if (!p) return toolError(`Compose project not found: ${args.id}`);
+        db.prepare(`UPDATE compose_projects SET name=?, description=?, content=?, updated_at=datetime('now') WHERE id=?`).run(
+          args.name        !== undefined ? args.name        : p.name,
+          args.description !== undefined ? args.description : p.description,
+          args.content     !== undefined ? args.content     : p.content,
+          args.id
+        );
+        return toolResult(db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id));
+      }
+
+      case 'remove_compose_project': {
+        const p = db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id);
+        if (!p) return toolError(`Compose project not found: ${args.id}`);
+        db.prepare('DELETE FROM compose_projects WHERE id = ?').run(args.id);
+        return toolResult({ removed: args.id, name: p.name });
+      }
+
+      case 'set_compose_service_links': {
+        const p = db.prepare('SELECT id FROM compose_projects WHERE id = ?').get(args.compose_id);
+        if (!p) return toolError(`Compose project not found: ${args.compose_id}`);
+        const delLinks = db.prepare('DELETE FROM compose_service_links WHERE compose_id = ?');
+        const insLink  = db.prepare(`INSERT OR REPLACE INTO compose_service_links (compose_id, service_name, host_id, created_at) VALUES (?, ?, ?, datetime('now'))`);
+        db.transaction(() => {
+          delLinks.run(args.compose_id);
+          for (const l of (args.links || [])) {
+            if (l.service_name) insLink.run(args.compose_id, l.service_name, l.host_id || null);
+          }
+        })();
+        const updated = db.prepare(`
+          SELECT csl.service_name, csl.host_id, h.ip, h.name AS host_name
+          FROM compose_service_links csl LEFT JOIN hosts h ON h.id = csl.host_id
+          WHERE csl.compose_id = ?
+        `).all(args.compose_id);
+        return toolResult({ compose_id: args.compose_id, links: updated });
+      }
+
+      case 'set_compose_subnet_links': {
+        const p = db.prepare('SELECT id FROM compose_projects WHERE id = ?').get(args.compose_id);
+        if (!p) return toolError(`Compose project not found: ${args.compose_id}`);
+        const delSub = db.prepare('DELETE FROM compose_subnet_links WHERE compose_id = ?');
+        const insSub = db.prepare('INSERT OR IGNORE INTO compose_subnet_links (compose_id, subnet_id) VALUES (?, ?)');
+        db.transaction(() => {
+          delSub.run(args.compose_id);
+          for (const sid of (args.subnet_ids || [])) insSub.run(args.compose_id, sid);
+        })();
+        const updated = db.prepare(`
+          SELECT s.id, s.name, s.network, s.cidr
+          FROM compose_subnet_links csnl JOIN subnets s ON s.id = csnl.subnet_id
+          WHERE csnl.compose_id = ?
+        `).all(args.compose_id);
+        return toolResult({ compose_id: args.compose_id, subnet_links: updated });
       }
 
       case 'get_settings':

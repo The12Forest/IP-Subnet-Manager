@@ -88,6 +88,12 @@ db.exec(`
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(compose_id, service_name)
   );
+
+  CREATE TABLE IF NOT EXISTS compose_subnet_links (
+    compose_id INTEGER NOT NULL REFERENCES compose_projects(id) ON DELETE CASCADE,
+    subnet_id  INTEGER NOT NULL REFERENCES subnets(id) ON DELETE CASCADE,
+    PRIMARY KEY (compose_id, subnet_id)
+  );
 `);
 
 module.exports = db;

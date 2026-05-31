@@ -18,8 +18,12 @@ const defaults = [
   { key: 'bind_host',             value: '0.0.0.0',      description: 'Host/IP to bind the server to (requires restart)' },
   { key: 'port',                  value: '3000',          description: 'Web UI port (requires restart; Docker users must also update port mapping)' },
   { key: 'mcp_port',              value: '3001',          description: 'MCP server port (requires restart; Docker users must also update port mapping)' },
-  { key: 'mcp_oauth_client_id',  value: 'claude-client', description: 'OAuth Client ID for claude.ai MCP integration' },
-  { key: 'mcp_oauth_client_secret', value: '',            description: 'OAuth Client Secret for claude.ai MCP integration' },
+  { key: 'mcp_oauth_client_id',     value: 'claude-client', description: 'OAuth Client ID for claude.ai MCP integration' },
+  { key: 'mcp_oauth_client_secret', value: '',             description: 'OAuth Client Secret for claude.ai MCP integration' },
+  { key: 'backup_enabled',          value: 'false',        description: 'Enable automatic database backups' },
+  { key: 'backup_interval_hours',   value: '24',           description: 'Hours between automatic backups' },
+  { key: 'backup_max_count',        value: '7',            description: 'Maximum number of backup files to keep' },
+  { key: 'backup_last_run',         value: '',             description: 'ISO timestamp of the last automatic backup' },
 ];
 
 const insert = db.prepare(

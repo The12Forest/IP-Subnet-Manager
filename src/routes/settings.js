@@ -121,6 +121,7 @@ router.delete('/:key/override', requireAuth, requireRole('admin'), (req, res) =>
 // Bulk update — only known keys accepted
 const ALLOWED_KEYS = new Set(Object.keys(ENV_KEY_MAP).concat([
   'setup_complete', 'mcp_enabled', 'base_network', 'base_cidr', 'app_name', 'theme_default',
+  'backup_enabled', 'backup_interval_hours', 'backup_max_count', 'backup_last_run',
 ]));
 
 router.put('/', requireAuth, requireRole('admin'), (req, res) => {

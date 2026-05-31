@@ -39,6 +39,12 @@ const ComposePage = {
   _cardHtml(p) {
     const isExpanded = ComposePage._expanded === p.id;
     const updated    = new Date(p.updated_at).toLocaleString();
+    // Parse subnet names from GROUP_CONCAT result
+    const subnetChips = p.subnet_names
+      ? p.subnet_names.split(',').map(n =>
+          `<span class="compose-subnet-chip">${App.esc(n.trim())}</span>`
+        ).join('')
+      : '';
     return `
       <div class="compose-card" id="compose-card-${p.id}">
         <div class="compose-card-header" onclick="ComposePage.toggle(${p.id})">
@@ -46,6 +52,7 @@ const ComposePage = {
           <div class="compose-info">
             <span class="compose-name">${App.esc(p.name)}</span>
             <span class="compose-meta">${p.linked_count} linked · ${updated}</span>
+            ${subnetChips ? `<span class="compose-subnet-chips">${subnetChips}</span>` : ''}
           </div>
           <div class="compose-card-actions" onclick="event.stopPropagation()">
             <button class="btn btn-secondary btn-sm" onclick="ComposePage.openEditModal(${p.id})">Edit</button>
@@ -74,15 +81,31 @@ const ComposePage = {
     try {
       const data     = await fetch(`/api/v1/compose/${id}`).then(r => r.json());
       const services = ComposePage._parseServices(data.content);
-      container.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || []);
+      container.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || [], data);
     } catch {
       container.innerHTML = '<p style="color:var(--danger);padding:12px 16px;font-size:13px">Failed to load services</p>';
     }
   },
 
-  _linkRowsHtml(projectId, services, links) {
+  _linkRowsHtml(projectId, services, links, data) {
+    // Subnet selector — checkboxes for each available subnet
+    const subnetLinkedIds = new Set((data.subnet_links || []).map(s => s.subnet_id));
+    const subnetCheckboxes = App.subnets.map(s => `
+      <label class="compose-subnet-check">
+        <input type="checkbox" value="${s.id}" data-subnet="${s.id}"
+               ${subnetLinkedIds.has(s.id) ? 'checked' : ''}>
+        <span>${App.esc(s.name)}</span>
+        <span class="compose-subnet-range mono">${s.network}/${s.cidr}</span>
+      </label>`).join('');
+    const subnetSection = `
+      <div class="compose-subnet-section">
+        <span class="compose-section-label">Linked Subnets</span>
+        <div class="compose-subnet-checks">${subnetCheckboxes || '<span style="color:var(--muted);font-size:12px">No subnets configured</span>'}</div>
+        <button class="btn btn-secondary btn-sm" onclick="ComposePage.saveSubnets(${projectId})" style="margin-top:6px">Save Subnets</button>
+      </div>`;
+
     if (!services.length) {
-      return '<p style="color:var(--muted);padding:12px 16px;font-size:13px">No services found — check that your YAML has a <code>services:</code> block</p>';
+      return subnetSection + '<p style="color:var(--muted);padding:12px 16px;font-size:13px">No services found — check that your YAML has a <code>services:</code> block</p>';
     }
 
     const linkMap = {};
@@ -118,11 +141,34 @@ const ComposePage = {
     }).join('');
 
     return `<div class="compose-links-body">
+      ${subnetSection}
+      <div class="compose-services-header">
+        <span class="compose-section-label">Service → IP Links</span>
+      </div>
       ${rows}
       <div class="compose-links-footer">
-        <button class="btn btn-primary btn-sm" onclick="ComposePage.saveLinks(${projectId})">Save Links</button>
+        <button class="btn btn-primary btn-sm" onclick="ComposePage.saveLinks(${projectId})">Save Service Links</button>
       </div>
     </div>`;
+  },
+
+  async saveSubnets(projectId) {
+    const container = document.getElementById(`compose-links-${projectId}`);
+    if (!container) return;
+    const subnetIds = [...container.querySelectorAll('.compose-subnet-check input:checked')]
+      .map(cb => parseInt(cb.value, 10));
+    try {
+      const res = await fetch(`/api/v1/compose/${projectId}/subnets`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(subnetIds),
+      });
+      if (!res.ok) throw new Error();
+      App.toast('Subnet links saved', 'success');
+      await ComposePage.load();
+    } catch {
+      App.toast('Failed to save subnet links', 'error');
+    }
   },
 
   async saveLinks(projectId) {

@@ -245,6 +245,7 @@
   </div>
   <div class="panel-tabs">
     <button class="panel-tab active" data-tab="general"   onclick="SettingsPanel.tab('general')">General</button>
+    <button class="panel-tab"        data-tab="backups"   onclick="SettingsPanel.tab('backups')">Backups</button>
     <button class="panel-tab"        data-tab="network"   onclick="SettingsPanel.tab('network')">Network</button>
     <button class="panel-tab"        data-tab="users"     onclick="SettingsPanel.tab('users')">Users</button>
     <button class="panel-tab"        data-tab="auditlog"  onclick="SettingsPanel.tab('auditlog')">Audit Log</button>
@@ -321,6 +322,43 @@
         </div>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="SettingsPanel.importJSON(this)">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">Import JSON…</button>
+      </div>
+    </div>
+
+    <!-- Backups tab -->
+    <div class="tab-content" id="tab-backups">
+      <div class="panel-section">
+        <h4>Automatic Backups</h4>
+        <div class="toggle-group" style="margin-bottom:12px">
+          <span>Enable automatic backups</span>
+          <label class="toggle">
+            <input type="checkbox" id="set-backup-enabled" onchange="SettingsPanel.saveBackupSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label id="label-backup-interval-hours">Backup interval (hours)</label>
+          <div class="setting-row">
+            <input type="number" id="set-backup-interval-hours" min="1" max="720" placeholder="24">
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="label-backup-max-count">Max backups to keep</label>
+          <div class="setting-row">
+            <input type="number" id="set-backup-max-count" min="1" max="100" placeholder="7">
+          </div>
+          <span class="hint">Oldest files are deleted automatically once the limit is reached</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="SettingsPanel.saveBackupSettings()">Save</button>
+      </div>
+
+      <div class="panel-section">
+        <div class="backup-list-header">
+          <h4>Backup Files</h4>
+          <button class="btn btn-secondary btn-sm" id="backup-now-btn" onclick="SettingsPanel.runBackup()">Backup Now</button>
+        </div>
+        <div id="backup-last-run" style="font-size:11px;color:var(--muted);margin-bottom:10px"></div>
+        <div id="backup-list"></div>
       </div>
     </div>
 

@@ -26,6 +26,7 @@ const SettingsPanel = {
     if (name === 'users')    UsersPanel.load();
     if (name === 'auditlog') SettingsPanel.loadAudit();
     if (name === 'about')    SettingsPanel.loadAbout();
+    if (name === 'backups')  SettingsPanel.loadBackups();
   },
 
   async load() {
@@ -51,6 +52,7 @@ const SettingsPanel = {
       'port', 'mcp_port',
       'check_interval', 'check_timeout', 'check_enabled',
       'network_mode',
+      'backup_enabled', 'backup_interval_hours', 'backup_max_count',
     ];
     for (const key of keys) {
       SettingsPanel._applyField(key);
@@ -257,6 +259,96 @@ const SettingsPanel = {
       { mcp_oauth_client_id: id, mcp_oauth_client_secret: secret },
       'MCP credentials saved — takes effect immediately'
     );
+  },
+
+  async loadBackups() {
+    // Apply form fields from already-loaded settings
+    SettingsPanel._applyField('backup_enabled');
+    SettingsPanel._applyField('backup_interval_hours');
+    SettingsPanel._applyField('backup_max_count');
+
+    // Show last run time
+    const lastRun   = SettingsPanel._get('backup_last_run');
+    const lastRunEl = document.getElementById('backup-last-run');
+    if (lastRunEl) {
+      lastRunEl.textContent = lastRun
+        ? `Last backup: ${new Date(lastRun).toLocaleString()}`
+        : 'No backups have run yet';
+    }
+
+    // Load backup file list
+    const container = document.getElementById('backup-list');
+    if (!container) return;
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px">Loading…</p>';
+    try {
+      const backups = await fetch('/api/v1/backup').then(r => r.json());
+      if (!backups.length) {
+        container.innerHTML = '<p style="color:var(--muted);font-size:13px">No backup files yet</p>';
+        return;
+      }
+      container.innerHTML = backups.map(b => `
+        <div class="backup-row">
+          <span class="backup-name mono">${App.esc(b.name)}</span>
+          <span class="backup-size">${SettingsPanel._formatBytes(b.size)}</span>
+          <span class="backup-date">${new Date(b.created_at).toLocaleString()}</span>
+          <div class="backup-actions">
+            <a href="/api/v1/backup/${encodeURIComponent(b.name)}" download
+               class="btn btn-secondary btn-sm" title="Download">↓</a>
+            <button class="btn btn-danger btn-sm" title="Delete"
+                    onclick="SettingsPanel.deleteBackup('${App.esc(b.name)}')">×</button>
+          </div>
+        </div>`).join('');
+    } catch {
+      container.innerHTML = '<p style="color:var(--danger);font-size:13px">Failed to load backups</p>';
+    }
+  },
+
+  _formatBytes(bytes) {
+    if (bytes < 1024)        return `${bytes} B`;
+    if (bytes < 1048576)     return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  },
+
+  async saveBackupSettings() {
+    const enabled  = document.getElementById('set-backup-enabled')?.checked ? 'true' : 'false';
+    const interval = document.getElementById('set-backup-interval-hours')?.value || '24';
+    const maxCount = document.getElementById('set-backup-max-count')?.value || '7';
+    await SettingsPanel._save(
+      { backup_enabled: enabled, backup_interval_hours: interval, backup_max_count: maxCount },
+      'Backup settings saved'
+    );
+  },
+
+  async runBackup() {
+    const btn = document.getElementById('backup-now-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
+    try {
+      const res = await fetch('/api/v1/backup', { method: 'POST' });
+      const d   = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Backup failed');
+      App.toast(`Backup created: ${d.latest}`, 'success');
+      await SettingsPanel.load();
+      SettingsPanel.loadBackups();
+    } catch (err) {
+      App.toast(err.message || 'Backup failed', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Backup Now'; }
+    }
+  },
+
+  async deleteBackup(name) {
+    const ok = await App.confirm(
+      `Delete backup <b>${App.esc(name)}</b>? This cannot be undone.`,
+      { confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/v1/backup/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (res.ok) {
+      App.toast('Backup deleted', 'success');
+      SettingsPanel.loadBackups();
+    } else {
+      App.toast('Failed to delete backup', 'error');
+    }
   },
 
   async importJSON(input) {
