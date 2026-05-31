@@ -242,7 +242,15 @@ app.use((req, res, next) => {
 
 // ── MCP session management ───────────────────────────────────────────────────
 
-const sessions = new Map(); // sessionId -> { sseRes: res | null }
+const sessions = new Map(); // sessionId -> { sseRes: res | null, createdAt: Date.now() }
+
+// Clean up sessions older than 2 hours
+setInterval(() => {
+  const cutoff = Date.now() - 7_200_000;
+  for (const [id, s] of sessions) {
+    if (s.createdAt < cutoff) sessions.delete(id);
+  }
+}, 600_000);
 
 // ── Tool definitions ────────────────────────────────────────────────────────
 
@@ -770,12 +778,20 @@ async function callTool(name, args) {
       case 'get_settings':
         return toolResult(db.prepare('SELECT key, value, description FROM settings ORDER BY key ASC').all());
 
-      case 'update_setting':
+      case 'update_setting': {
+        const MCP_SETTING_ALLOWLIST = new Set([
+          'app_name','bind_host','port','mcp_port','check_interval','check_enabled',
+          'check_timeout','max_users','session_timeout','network_mode','theme_default',
+          'mcp_oauth_client_id','mcp_oauth_client_secret','backup_enabled',
+          'backup_interval_hours','backup_max_count',
+        ]);
+        if (!MCP_SETTING_ALLOWLIST.has(args.key)) return toolError(`Setting key not allowed: ${args.key}`);
         db.prepare(`
           INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
           ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
         `).run(args.key, String(args.value));
         return toolResult({ key: args.key, value: args.value });
+      }
 
       case 'search': {
         const q = `%${args.query}%`;
@@ -813,7 +829,7 @@ async function handleRpc(body) {
   switch (method) {
     case 'initialize': {
       const sessionId = crypto.randomUUID();
-      sessions.set(sessionId, { sseRes: null });
+      sessions.set(sessionId, { sseRes: null, createdAt: Date.now() });
       return {
         jsonrpc: '2.0', id,
         result: {

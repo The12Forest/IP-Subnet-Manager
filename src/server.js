@@ -31,6 +31,7 @@ const statusRouter   = require('./routes/status');
 const auditRouter    = require('./routes/audit');
 const exportRouter   = require('./routes/export');
 const composeRouter  = require('./routes/compose');
+const domainsRouter  = require('./routes/domains');
 const backupRouter   = require('./routes/backup');
 
 const { startChecker }         = require('./lib/checker');
@@ -68,6 +69,7 @@ app.use('/api/v1/audit',       auditRouter);
 app.use('/api/v1/export',      exportRouter);
 app.use('/api/v1/import',      exportRouter);    // POST /import/json handled in exportRouter
 app.use('/api/v1/compose',     composeRouter);
+app.use('/api/v1/domains',     domainsRouter);
 app.use('/api/v1/backup',      backupRouter);
 
 // Serve static frontend

@@ -3,6 +3,7 @@
 const express     = require('express');
 const db          = require('../db/schema');
 const requireAuth = require('../middleware/auth');
+const requireRole = require('../middleware/admin');
 const { clients, broadcast } = require('../lib/sseHub');
 
 const router = express.Router();
@@ -18,7 +19,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json(allHostsWithSubnet.all());
 });
 
-router.post('/check-all', requireAuth, (req, res) => {
+router.post('/check-all', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   setImmediate(async () => {
     try {
       const { startCheckerCycle } = require('../lib/checker');

@@ -1366,6 +1366,35 @@ textarea { resize: vertical; min-height: 80px; }
 
 body.light .compose-card { box-shadow: 0 1px 3px rgba(15,23,42,.06); }
 
+/* ── Domains ─────────────────────────────────────────────────────────────────── */
+.domain-globe { font-size: 16px; flex: 0 0 auto; }
+
+.domain-records-body { padding: 4px 0; }
+
+.domain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.domain-table th {
+  text-align: left;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.domain-table td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.domain-table tr:last-child td { border-bottom: none; }
+.domain-table tr:hover td { background: var(--card2); }
+.domain-record-row td:last-child { text-align: right; }
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 /* Touch devices: always show card actions (no hover needed) */

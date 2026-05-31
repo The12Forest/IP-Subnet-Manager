@@ -27,9 +27,12 @@ function listBackups() {
     return fs.readdirSync(backupDir)
       .filter(f => /^backup-[\dT-]+\.db$/.test(f))
       .map(f => {
-        const full = path.join(backupDir, f);
-        const stat = fs.statSync(full);
-        return { name: f, size: stat.size, created_at: stat.mtimeMs };
+        const full    = path.join(backupDir, f);
+        const stat    = fs.statSync(full);
+        // Parse creation timestamp from filename (backup-2024-01-15T14-30-00.db)
+        const match   = f.match(/^backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.db$/);
+        const created = match ? new Date(match[1].replace(/T(\d{2})-(\d{2})-(\d{2})/, 'T$1:$2:$3')).getTime() : stat.birthtimeMs;
+        return { name: f, size: stat.size, created_at: created };
       })
       .sort((a, b) => b.created_at - a.created_at) // newest first
       .map(b => ({ ...b, created_at: new Date(b.created_at).toISOString() }));

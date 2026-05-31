@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'sm-shell-v1';
+const CACHE = 'sm-shell-v2';
 const SHELL = [
   '/',
   '/app.js',
@@ -8,6 +8,7 @@ const SHELL = [
   '/users.js',
   '/wizard.js',
   '/compose.js',
+  '/domains.js',
   '/style.css',
   '/manifest.json',
   '/favicon.svg',

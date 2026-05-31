@@ -117,4 +117,29 @@ try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER
 try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
 
+// ── Domain tables ─────────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS domains (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT NOT NULL UNIQUE,
+    description       TEXT,
+    display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS domain_records (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_id   INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL DEFAULT '@',
+    record_type TEXT NOT NULL DEFAULT 'A'
+                CHECK(record_type IN ('A','AAAA','CNAME','MX','TXT','NS','SRV','CAA')),
+    host_id     INTEGER REFERENCES hosts(id) ON DELETE SET NULL,
+    value       TEXT,
+    priority    INTEGER,
+    notes       TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 module.exports = db;

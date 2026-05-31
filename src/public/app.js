@@ -56,9 +56,13 @@ const App = {
     const avatarEl  = document.getElementById('user-avatar');
     document.getElementById('user-name').textContent = name;
     if (App.user.gravatar_url) {
-      avatarEl.innerHTML = `<img src="${App.user.gravatar_url}&s=44"
-        style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block"
-        onerror="this.parentElement.textContent='${name[0].toUpperCase()}'" alt="">`;
+      const img = document.createElement('img');
+      img.src   = `${App.user.gravatar_url}&s=44`;
+      img.style.cssText = 'width:22px;height:22px;border-radius:50%;object-fit:cover;display:block';
+      img.alt   = '';
+      img.addEventListener('error', () => { avatarEl.textContent = name[0].toUpperCase(); });
+      avatarEl.innerHTML = '';
+      avatarEl.appendChild(img);
     } else {
       avatarEl.textContent = name[0].toUpperCase();
     }
@@ -73,6 +77,7 @@ const App = {
     );
     if (name === 'dashboard') DashboardPage.render();
     if (name === 'compose')   ComposePage.load();
+    if (name === 'domains')   DomainsPage.load();
   },
 
   async login() {
@@ -201,8 +206,9 @@ const App = {
     const range    = `${s.network}/${s.cidr}`;
     const total    = Math.pow(2, 32 - s.cidr) - 2;
     const used     = hosts.length;
-    const colorDot = s.color
-      ? `<span class="subnet-color-dot" style="background:${s.color}"></span>`
+    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color || '') ? s.color : '';
+    const colorDot  = safeColor
+      ? `<span class="subnet-color-dot" style="background:${safeColor}"></span>`
       : '';
     const canEdit  = App.user && (App.user.role === 'admin' || App.user.role === 'editor');
     const canDel   = App.user && App.user.role === 'admin';

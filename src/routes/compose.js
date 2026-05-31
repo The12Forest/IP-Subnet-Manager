@@ -53,10 +53,10 @@ function fullProject(id) {
   return { ...p, links: getServiceLinks.all(id), host_links: getHostLinks.all(id) };
 }
 
-// Trigger icon download in the background (non-blocking for the HTTP response)
-function triggerIconCache(id, iconUrl) {
+// Download and cache icon before responding so the client sees it immediately
+async function awaitIconCache(id, iconUrl) {
   if (!iconUrl || !/^https?:\/\//i.test(iconUrl)) return;
-  cacheIcon(id, iconUrl).catch(() => {}); // fire-and-forget
+  try { await cacheIcon(id, iconUrl); } catch { /* silent — broken URL serves default */ }
 }
 
 // ── Icon serving (must be before /:id) ───────────────────────────────────────
@@ -72,14 +72,14 @@ router.get('/:id/icon', (req, res) => {
 
 router.get('/', requireAuth, (req, res) => res.json(listProjects.all()));
 
-router.post('/', requireAuth, requireRole('admin', 'editor'), (req, res) => {
+router.post('/', requireAuth, requireRole('admin', 'editor'), async (req, res) => {
   const { name, description, content, icon_url, display_subnet_id } = req.body || {};
   if (!name || !content) return res.status(400).json({ error: 'name and content are required' });
   const r = insertProject.run(name.trim(), description || null, content, icon_url || null, display_subnet_id || null);
   const project = getProject.get(r.lastInsertRowid);
   audit(req.user, 'create', 'compose', project.id, { after: { name: project.name } });
-  triggerIconCache(project.id, icon_url);
-  res.status(201).json(project);
+  await awaitIconCache(project.id, icon_url);
+  res.status(201).json(getProject.get(project.id)); // re-fetch so icon path is included
 });
 
 router.get('/:id', requireAuth, (req, res) => {
@@ -88,7 +88,7 @@ router.get('/:id', requireAuth, (req, res) => {
   res.json(project);
 });
 
-router.put('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) => {
+router.put('/:id', requireAuth, requireRole('admin', 'editor'), async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const p  = getProject.get(id);
   if (!p) return res.status(404).json({ error: 'Compose project not found' });
@@ -104,8 +104,8 @@ router.put('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) => {
     id
   );
 
-  // Re-download only if the URL actually changed
-  if (newIconUrl && newIconUrl !== p.icon_url) triggerIconCache(id, newIconUrl);
+  // Re-download only if the URL actually changed — await so icon is ready on response
+  if (newIconUrl && newIconUrl !== p.icon_url) await awaitIconCache(id, newIconUrl);
 
   audit(req.user, 'update', 'compose', id, { after: { name: name || p.name } });
   res.json(getProject.get(id));

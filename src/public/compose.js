@@ -97,9 +97,10 @@ const ComposePage = {
     ComposePage._render();
   },
 
-  _iconHtml(projectId) {
-    // Always use the server endpoint — it handles cache, fallback, and default automatically
-    return `<img src="/api/v1/compose/${projectId}/icon" class="compose-icon-img" alt="">`;
+  _iconHtml(projectId, updatedAt) {
+    // Cache-bust with updated_at so the browser fetches fresh after each save
+    const t = updatedAt ? `?t=${new Date(updatedAt).getTime()}` : '';
+    return `<img src="/api/v1/compose/${projectId}/icon${t}" class="compose-icon-img" alt="">`;
   },
 
   _cardHtml(p) {
@@ -108,7 +109,7 @@ const ComposePage = {
     return `
       <div class="compose-card" id="compose-card-${p.id}">
         <div class="compose-card-header" onclick="ComposePage.toggle(${p.id})">
-          ${ComposePage._iconHtml(p.id)}
+          ${ComposePage._iconHtml(p.id, p.updated_at)}
           <div class="compose-info">
             <span class="compose-name">${App.esc(p.name)}</span>
             <span class="compose-meta">${p.linked_count} linked · ${updated}</span>
@@ -154,9 +155,13 @@ const ComposePage = {
     const linkMap  = {};
     for (const l of links) linkMap[l.service_name] = l;
 
+    // If the project is assigned to a specific network, only show hosts from that network
+    const filterSubnetId = data?.display_subnet_id || null;
     const allHosts = [];
     for (const [sid, d] of Object.entries(App.hosts)) {
-      const subnet = App.subnets.find(s => s.id === parseInt(sid, 10));
+      const subnetId = parseInt(sid, 10);
+      if (filterSubnetId && subnetId !== filterSubnetId) continue;
+      const subnet = App.subnets.find(s => s.id === subnetId);
       for (const h of (d.hosts || [])) allHosts.push({ ...h, subnetName: subnet ? subnet.name : '' });
     }
     allHosts.sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
@@ -313,7 +318,7 @@ const ComposePage = {
         <label>Icon</label>
         <div class="compose-icon-edit-row">
           <div class="compose-icon-edit-thumb">
-            <img src="/api/v1/compose/${id}/icon" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img" alt="">
+            <img src="/api/v1/compose/${id}/icon?t=${new Date(data.updated_at).getTime()}" class="compose-icon-edit-preview" id="m-cmp-icon-preview-img" alt="">
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px">
             <input type="text" id="m-cmp-icon-url" placeholder="Image URL (https://…)" value="${urlValue}">
