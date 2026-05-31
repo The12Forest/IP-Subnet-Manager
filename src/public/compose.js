@@ -132,18 +132,28 @@ const ComposePage = {
     }
     ComposePage._expanded = id;
     ComposePage._render();
-    ComposePage._loadLinks(id);
+    // _render() already calls _loadLinks for the expanded item — do NOT call it again here
   },
 
   async _loadLinks(id) {
     const container = document.getElementById(`compose-links-${id}`);
     if (!container) return;
     try {
-      const data     = await fetch(`/api/v1/compose/${id}`).then(r => r.json());
+      const res = await fetch(`/api/v1/compose/${id}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data     = await res.json();
       const services = ComposePage._parseServices(data.content);
-      container.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || [], data);
-    } catch {
-      container.innerHTML = '<p style="color:var(--danger);padding:12px 16px;font-size:13px">Failed to load services</p>';
+      // Re-check container is still in DOM after async gap
+      const live = document.getElementById(`compose-links-${id}`);
+      if (!live) return;
+      live.innerHTML = ComposePage._linkRowsHtml(id, services, data.links || [], data);
+    } catch (err) {
+      console.error('[compose] _loadLinks error:', err);
+      const live = document.getElementById(`compose-links-${id}`);
+      if (live) live.innerHTML = `<p style="color:var(--danger);padding:12px 16px;font-size:13px">Failed to load services: ${App.esc(err.message)}</p>`;
     }
   },
 
