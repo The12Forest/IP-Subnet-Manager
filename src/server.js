@@ -34,7 +34,8 @@ const composeRouter  = require('./routes/compose');
 const backupRouter   = require('./routes/backup');
 
 const { startChecker }         = require('./lib/checker');
-const { startBackupScheduler } = require('./lib/backup');
+const { startBackupScheduler }      = require('./lib/backup');
+const { startIconRefreshScheduler } = require('./lib/iconCache');
 const mcpServer        = require('./mcp/server');
 
 // ── Express app ─────────────────────────────────────────────────────────────
@@ -156,4 +157,5 @@ server.listen(config.PORT, config.BIND_HOST, () => {
 
 startChecker();
 startBackupScheduler();
+startIconRefreshScheduler();
 mcpServer.start(config.MCP_PORT, tlsOpts);

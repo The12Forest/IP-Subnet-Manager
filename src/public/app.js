@@ -52,9 +52,16 @@ const App = {
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
 
-    const name = App.user.username;
+    const name      = App.user.username;
+    const avatarEl  = document.getElementById('user-avatar');
     document.getElementById('user-name').textContent = name;
-    document.getElementById('user-avatar').textContent = name[0].toUpperCase();
+    if (App.user.gravatar_url) {
+      avatarEl.innerHTML = `<img src="${App.user.gravatar_url}&s=44"
+        style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block"
+        onerror="this.parentElement.textContent='${name[0].toUpperCase()}'" alt="">`;
+    } else {
+      avatarEl.textContent = name[0].toUpperCase();
+    }
   },
 
   page(name) {

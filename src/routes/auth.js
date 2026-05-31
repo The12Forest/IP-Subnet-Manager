@@ -6,7 +6,8 @@ const jwt     = require('jsonwebtoken');
 const db      = require('../db/schema');
 const config  = require('../config');
 const audit   = require('../lib/audit');
-const requireAuth = require('../middleware/auth');
+const requireAuth     = require('../middleware/auth');
+const { gravatarUrl } = require('../lib/gravatar');
 
 const router = express.Router();
 
@@ -45,7 +46,7 @@ router.post('/login', (req, res) => {
 
   audit({ id: user.id, username: user.username }, 'login', 'user', user.id, {});
 
-  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
+  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role, email: user.email || null, gravatar_url: gravatarUrl(user.email) } });
 });
 
 router.post('/logout', (req, res) => {
@@ -53,8 +54,12 @@ router.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+const getUser = db.prepare('SELECT id, username, email, role FROM users WHERE id = ?');
+
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, role: req.user.role });
+  const user = getUser.get(req.user.id);
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  res.json({ id: user.id, username: user.username, role: user.role, email: user.email || null, gravatar_url: gravatarUrl(user.email) });
 });
 
 module.exports = router;

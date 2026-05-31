@@ -295,6 +295,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+/* Small avatar in the users table */
+.user-avatar-sm {
+  display: block;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.user-avatar-letter {
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Navigation ────────────────────────────────────────────────────────────── */
@@ -1164,6 +1182,11 @@ textarea { resize: vertical; min-height: 80px; }
   text-transform: uppercase;
   letter-spacing: .5px;
   flex: 1;
+}
+.compose-group-meta {
+  font-size: 11px;
+  color: var(--muted);
+  flex: 0 0 auto;
 }
 .compose-group-count {
   font-size: 11px;

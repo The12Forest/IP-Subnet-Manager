@@ -93,6 +93,10 @@
         <input type="text" id="wiz-username" placeholder="admin" autocomplete="off">
       </div>
       <div class="form-group">
+        <label>Email <span class="muted">(optional — used for Gravatar avatar)</span></label>
+        <input type="email" id="wiz-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
         <label>Password</label>
         <input type="password" id="wiz-password" placeholder="Min. 8 characters" autocomplete="new-password">
       </div>
@@ -228,10 +232,7 @@
     <div id="page-compose" class="page">
       <div class="page-toolbar">
         <h2 class="page-title">Docker Compose</h2>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" onclick="ComposePage.openAddGroupModal()">+ Group</button>
-          <button class="btn btn-primary"   onclick="ComposePage.openAddModal()">+ Add Compose</button>
-        </div>
+        <button class="btn btn-primary" onclick="ComposePage.openAddModal()">+ Add Compose</button>
       </div>
       <div id="compose-list"></div>
     </div>

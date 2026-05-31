@@ -24,7 +24,7 @@ router.get('/status', (req, res) => {
 });
 
 const insertUser   = db.prepare(
-  "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, 'admin', datetime('now'))"
+  "INSERT INTO users (username, password_hash, email, role, created_at) VALUES (?, ?, ?, 'admin', datetime('now'))"
 );
 const insertSubnet = db.prepare(
   "INSERT INTO subnets (name, network, cidr, description, display_order, created_at) VALUES (?, ?, ?, ?, 0, datetime('now'))"
@@ -36,7 +36,7 @@ const setSetting   = db.prepare(
 const completeWizard = db.transaction((data) => {
   // Create admin user
   const hash = bcrypt.hashSync(data.password, 10);
-  const userResult = insertUser.run(data.username, hash);
+  const userResult = insertUser.run(data.username, hash, data.email || null);
 
   // Create first subnet if provided
   if (data.network && data.subnet_name) {
@@ -63,7 +63,7 @@ router.post('/complete', (req, res) => {
     return res.status(409).json({ error: 'Setup already completed' });
   }
 
-  const { username, password, network, cidr, subnet_name, subnet_description, network_mode } = req.body || {};
+  const { username, password, email, network, cidr, subnet_name, subnet_description, network_mode } = req.body || {};
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
@@ -73,7 +73,7 @@ router.post('/complete', (req, res) => {
   }
 
   try {
-    const userId = completeWizard({ username, password, network, cidr, subnet_name, subnet_description, network_mode });
+    const userId = completeWizard({ username, password, email, network, cidr, subnet_name, subnet_description, network_mode });
 
     const token = jwt.sign(
       { id: userId, username, role: 'admin' },

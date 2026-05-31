@@ -113,5 +113,8 @@ db.exec(`
 // ── Column migrations (safe on existing DBs) ─────────────────────────────────
 try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch {}
 try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
 
 module.exports = db;

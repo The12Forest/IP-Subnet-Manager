@@ -94,9 +94,11 @@ const Wizard = {
     btn.disabled = true;
     btn.textContent = 'Setting up…';
 
+    const email = document.getElementById('wiz-email')?.value.trim() || '';
     const body = {
       username,
       password,
+      email:               email || undefined,
       subnet_name:         document.getElementById('wiz-subnet-name').value.trim(),
       network:             document.getElementById('wiz-network').value.trim(),
       cidr:                parseInt(document.getElementById('wiz-cidr').value, 10),
