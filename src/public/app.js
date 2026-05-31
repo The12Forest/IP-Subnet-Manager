@@ -52,10 +52,20 @@ const App = {
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
 
-    // Set user info in topbar
     const name = App.user.username;
     document.getElementById('user-name').textContent = name;
     document.getElementById('user-avatar').textContent = name[0].toUpperCase();
+  },
+
+  page(name) {
+    document.querySelectorAll('.nav-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.page === name)
+    );
+    document.querySelectorAll('.page').forEach(p =>
+      p.classList.toggle('active', p.id === `page-${name}`)
+    );
+    if (name === 'dashboard') DashboardPage.render();
+    if (name === 'compose')   ComposePage.load();
   },
 
   async login() {
@@ -248,10 +258,9 @@ const App = {
   // Live status update from SSE
   updateHostStatus(hostId, status) {
     const dot = document.getElementById(`dot-${hostId}`);
-    if (dot) {
-      dot.className = `status-dot ${status}`;
-    }
-    // Also update in-memory
+    if (dot) dot.className = `status-dot ${status}`;
+
+    // Update in-memory
     for (const subnetId of Object.keys(App.hosts)) {
       const d = App.hosts[subnetId];
       if (d && d.hosts) {
@@ -259,6 +268,10 @@ const App = {
         if (host) { host.last_status = status; break; }
       }
     }
+
+    // Notify pages
+    DashboardPage.onStatusUpdate(hostId, status);
+    ComposePage.onStatusUpdate(hostId, status);
   },
 
   subscribeEvents() {
@@ -679,6 +692,89 @@ const App = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  },
+};
+
+// ── Dashboard page ────────────────────────────────────────────────────────────
+
+const DashboardPage = {
+  render() {
+    let online = 0, offline = 0, unknown = 0;
+    for (const d of Object.values(App.hosts)) {
+      for (const h of (d.hosts || [])) {
+        if      (h.last_status === 'online')  online++;
+        else if (h.last_status === 'offline') offline++;
+        else                                  unknown++;
+      }
+    }
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('dash-online',  online);
+    set('dash-offline', offline);
+    set('dash-unknown', unknown);
+
+    // Heatmap
+    const heatmap = document.getElementById('dash-heatmap');
+    if (heatmap) {
+      if (!App.subnets.length) {
+        heatmap.innerHTML = '<p style="color:var(--muted);font-size:13px">No hosts yet — add a subnet first</p>';
+      } else {
+        heatmap.innerHTML = App.subnets.map(s => {
+          const d = App.hosts[s.id] || { hosts: [] };
+          const sorted = [...d.hosts].sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
+          const dots = sorted.map(h =>
+            `<span class="hmap-dot ${h.last_status || 'unknown'}" id="hmap-dot-${h.id}"
+               title="${App.esc(h.ip)}${h.name ? ' — ' + App.esc(h.name) : ''}"
+               onclick="App.openEditHostModal(${h.id})"></span>`
+          ).join('');
+          return `<div class="hmap-row">
+            <span class="hmap-subnet-label" title="${App.esc(s.name)}">${App.esc(s.name)}</span>
+            <div class="hmap-dots">${dots || '<span style="color:var(--muted);font-size:11px;font-style:italic">empty</span>'}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Offline alerts
+    const alerts = document.getElementById('dash-alerts');
+    if (alerts) {
+      const offlineHosts = [];
+      for (const [sid, d] of Object.entries(App.hosts)) {
+        const subnet = App.subnets.find(s => s.id === parseInt(sid, 10));
+        for (const h of (d.hosts || [])) {
+          if (h.last_status === 'offline') offlineHosts.push({ ...h, subnetName: subnet?.name || '' });
+        }
+      }
+      offlineHosts.sort((a, b) => App._ipToInt(a.ip) - App._ipToInt(b.ip));
+      if (!offlineHosts.length) {
+        alerts.innerHTML = '<p style="color:var(--online);font-size:13px">✓ No offline hosts detected</p>';
+      } else {
+        alerts.innerHTML = offlineHosts.map(h => `
+          <div class="host-row" onclick="App.openEditHostModal(${h.id})">
+            <span class="status-dot offline"></span>
+            <span class="host-ip mono">${App.esc(h.ip)}</span>
+            <span class="host-name">${App.esc(h.name || '—')}</span>
+            <span class="host-type-badge">${App.esc(h.subnetName)}</span>
+          </div>`).join('');
+      }
+    }
+  },
+
+  onStatusUpdate(hostId, status) {
+    // Update heatmap dot in-place
+    const dot = document.getElementById(`hmap-dot-${hostId}`);
+    if (dot) dot.className = `hmap-dot ${status}`;
+    // Re-render counts and offline list only if dashboard is active
+    const page = document.getElementById('page-dashboard');
+    if (page && page.classList.contains('active')) {
+      DashboardPage.render();
+    }
+  },
+
+  checkAll() {
+    fetch('/api/v1/status/check-all', { method: 'POST' })
+      .then(() => App.toast('Status check queued', 'info'))
+      .catch(() => App.toast('Check failed', 'error'));
   },
 };
 

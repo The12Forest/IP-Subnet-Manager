@@ -70,6 +70,24 @@ db.exec(`
     details     TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS compose_projects (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    description TEXT,
+    content     TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS compose_service_links (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    compose_id   INTEGER NOT NULL REFERENCES compose_projects(id) ON DELETE CASCADE,
+    service_name TEXT NOT NULL,
+    host_id      INTEGER REFERENCES hosts(id) ON DELETE SET NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(compose_id, service_name)
+  );
 `);
 
 module.exports = db;

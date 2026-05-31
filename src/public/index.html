@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Subnet Manager</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#161616">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Subnet Manager">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <!-- App -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -136,32 +145,94 @@
     </button>
   </header>
 
-  <!-- Content -->
+  <!-- Navigation -->
+  <nav id="app-nav">
+    <button class="nav-tab" data-page="dashboard" onclick="App.page('dashboard')">
+      <span class="nav-icon">◈</span><span class="nav-label">Dashboard</span>
+    </button>
+    <button class="nav-tab active" data-page="network" onclick="App.page('network')">
+      <span class="nav-icon">⬡</span><span class="nav-label">Network</span>
+    </button>
+    <button class="nav-tab" data-page="compose" onclick="App.page('compose')">
+      <span class="nav-icon">⧉</span><span class="nav-label">Compose</span>
+    </button>
+  </nav>
+
+  <!-- Pages -->
   <main id="app-main">
-    <!-- Stats row -->
-    <div id="stats-row">
-      <div class="stat-card">
-        <div class="stat-label">Subnets</div>
-        <div class="stat-value" id="stat-subnets">0</div>
+
+    <!-- ── Dashboard page ──────────────────────────────────────────────── -->
+    <div id="page-dashboard" class="page">
+      <div id="dash-status-row">
+        <div class="dash-tile online-tile">
+          <div class="dash-tile-value" id="dash-online">—</div>
+          <div class="dash-tile-label">Online</div>
+        </div>
+        <div class="dash-tile offline-tile">
+          <div class="dash-tile-value" id="dash-offline">—</div>
+          <div class="dash-tile-label">Offline</div>
+        </div>
+        <div class="dash-tile unknown-tile">
+          <div class="dash-tile-value" id="dash-unknown">—</div>
+          <div class="dash-tile-label">Unknown</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Assigned Services</div>
-        <div class="stat-value" id="stat-services">0</div>
+
+      <div class="dash-section">
+        <div class="dash-section-header">
+          <h3>Host Map</h3>
+          <span class="dash-section-hint">Click any dot to edit the host</span>
+        </div>
+        <div id="dash-heatmap"></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Free IPs</div>
-        <div class="stat-value" id="stat-free">—</div>
+
+      <div class="dash-section">
+        <div class="dash-section-header">
+          <h3>Offline Hosts</h3>
+        </div>
+        <div id="dash-alerts"></div>
+      </div>
+
+      <div class="dash-actions">
+        <button class="btn btn-secondary" onclick="App.page('network')">View Network</button>
+        <button class="btn btn-primary" onclick="DashboardPage.checkAll()">Run Check Now</button>
       </div>
     </div>
 
-    <!-- Toolbar -->
-    <div id="toolbar">
-      <input type="text" id="search-input" placeholder="Search by IP or name…" oninput="App.onSearch(this.value)">
-      <button class="btn btn-primary" onclick="App.openAddSubnetModal()">+ Subnet</button>
+    <!-- ── Network page (original content) ────────────────────────────── -->
+    <div id="page-network" class="page active">
+      <div id="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Subnets</div>
+          <div class="stat-value" id="stat-subnets">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Assigned Services</div>
+          <div class="stat-value" id="stat-services">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free IPs</div>
+          <div class="stat-value" id="stat-free">—</div>
+        </div>
+      </div>
+
+      <div id="toolbar">
+        <input type="text" id="search-input" placeholder="Search by IP or name…" oninput="App.onSearch(this.value)">
+        <button class="btn btn-primary" onclick="App.openAddSubnetModal()">+ Subnet</button>
+      </div>
+
+      <div id="subnet-grid"></div>
     </div>
 
-    <!-- Subnet grid -->
-    <div id="subnet-grid"></div>
+    <!-- ── Compose page ─────────────────────────────────────────────────── -->
+    <div id="page-compose" class="page">
+      <div class="page-toolbar">
+        <h2 class="page-title">Docker Compose</h2>
+        <button class="btn btn-primary" onclick="ComposePage.openAddModal()">+ Add Compose</button>
+      </div>
+      <div id="compose-list"></div>
+    </div>
+
   </main>
 </div>
 
@@ -393,5 +464,11 @@
 <script src="settings.js"></script>
 <script src="users.js"></script>
 <script src="wizard.js"></script>
+<script src="compose.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
 </body>
 </html>

@@ -30,6 +30,7 @@ const settingsRouter = require('./routes/settings');
 const statusRouter   = require('./routes/status');
 const auditRouter    = require('./routes/audit');
 const exportRouter   = require('./routes/export');
+const composeRouter  = require('./routes/compose');
 
 const { startChecker } = require('./lib/checker');
 const mcpServer        = require('./mcp/server');
@@ -63,6 +64,7 @@ app.use('/api/v1/status',      statusRouter);
 app.use('/api/v1/audit',       auditRouter);
 app.use('/api/v1/export',      exportRouter);
 app.use('/api/v1/import',      exportRouter);    // POST /import/json handled in exportRouter
+app.use('/api/v1/compose',     composeRouter);
 
 // Serve static frontend
 const publicDir = path.join(__dirname, 'public');
