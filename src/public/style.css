@@ -1151,7 +1151,38 @@ textarea { resize: vertical; min-height: 80px; }
   transition: background .15s;
 }
 .compose-card-header:hover { background: var(--card2); }
-.compose-icon { font-size: 18px; flex: 0 0 auto; }
+.compose-icon { font-size: 18px; flex: 0 0 auto; line-height: 1; }
+.compose-icon-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+/* Icon edit UI in modal */
+.compose-icon-edit-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.compose-icon-edit-thumb {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card2);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.compose-icon-edit-preview {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
 .compose-info { flex: 1; min-width: 0; }
 .compose-name {
   display: block;
@@ -1183,11 +1214,23 @@ textarea { resize: vertical; min-height: 80px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.compose-service-row .compose-host-sel {
+.compose-host-picker {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.compose-host-filter {
+  font-size: 11px;
+  padding: 4px 7px;
+  height: auto;
+  border-radius: 4px;
+}
+.compose-host-picker .compose-host-sel {
   font-size: 12px;
-  padding: 5px 8px;
+  padding: 4px 7px;
+  height: auto;
 }
 .compose-subnet-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .compose-subnet-chip {

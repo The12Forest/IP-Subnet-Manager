@@ -70,7 +70,10 @@ app.use('/api/v1/compose',     composeRouter);
 app.use('/api/v1/backup',      backupRouter);
 
 // Serve static frontend
-const publicDir = path.join(__dirname, 'public');
+const publicDir  = path.join(__dirname, 'public');
+const uploadsDir = path.join(path.resolve(config.DATA_DIR), 'uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
 app.use(express.static(publicDir));
 
 // SPA fallback

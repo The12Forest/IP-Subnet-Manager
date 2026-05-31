@@ -71,6 +71,14 @@ db.exec(`
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS compose_groups (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    color         TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS compose_projects (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
@@ -94,6 +102,16 @@ db.exec(`
     subnet_id  INTEGER NOT NULL REFERENCES subnets(id) ON DELETE CASCADE,
     PRIMARY KEY (compose_id, subnet_id)
   );
+
+  CREATE TABLE IF NOT EXISTS compose_host_links (
+    compose_id INTEGER NOT NULL REFERENCES compose_projects(id) ON DELETE CASCADE,
+    host_id    INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    PRIMARY KEY (compose_id, host_id)
+  );
 `);
+
+// ── Column migrations (safe on existing DBs) ─────────────────────────────────
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch {}
 
 module.exports = db;

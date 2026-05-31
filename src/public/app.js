@@ -319,7 +319,11 @@ const App = {
 
   confirm(message, { confirmLabel = 'Confirm', danger = false } = {}) {
     return new Promise((resolve) => {
-      App._confirmReject = () => resolve(false);
+      App._confirmReject = () => {
+        App._confirmReject = null;  // clear before hiding so closeModal doesn't loop
+        document.getElementById('modal-overlay').classList.add('hidden');
+        resolve(false);
+      };
       App.openModal(`
         <div class="modal-header">
           <h3>Confirm</h3>

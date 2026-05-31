@@ -404,6 +404,7 @@ const TOOLS = [
         name:        { type: 'string', description: 'Project name' },
         description: { type: 'string' },
         content:     { type: 'string', description: 'Raw docker-compose.yml YAML content' },
+        icon:        { type: 'string', description: 'URL to an icon image (png, svg, etc.)' },
         subnet_ids:  { type: 'array', items: { type: 'number' }, description: 'Subnet IDs to link to this project' },
       },
       required: ['name', 'content'],
@@ -411,7 +412,7 @@ const TOOLS = [
   },
   {
     name: 'update_compose_project',
-    description: 'Update a Compose project name, description, or YAML content',
+    description: 'Update a Compose project name, description, YAML content, or icon',
     inputSchema: {
       type: 'object',
       properties: {
@@ -419,6 +420,7 @@ const TOOLS = [
         name:        { type: 'string' },
         description: { type: 'string' },
         content:     { type: 'string' },
+        icon:        { type: 'string', description: 'URL to an icon image, or null to remove' },
       },
       required: ['id'],
     },
@@ -698,9 +700,9 @@ async function callTool(name, args) {
 
       case 'add_compose_project': {
         const r = db.prepare(`
-          INSERT INTO compose_projects (name, description, content, created_at, updated_at)
-          VALUES (?, ?, ?, datetime('now'), datetime('now'))
-        `).run(args.name, args.description || null, args.content);
+          INSERT INTO compose_projects (name, description, content, icon, created_at, updated_at)
+          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(args.name, args.description || null, args.content, args.icon || null);
         const newId = r.lastInsertRowid;
         if (Array.isArray(args.subnet_ids)) {
           const ins = db.prepare('INSERT OR IGNORE INTO compose_subnet_links (compose_id, subnet_id) VALUES (?, ?)');
@@ -712,10 +714,11 @@ async function callTool(name, args) {
       case 'update_compose_project': {
         const p = db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id);
         if (!p) return toolError(`Compose project not found: ${args.id}`);
-        db.prepare(`UPDATE compose_projects SET name=?, description=?, content=?, updated_at=datetime('now') WHERE id=?`).run(
+        db.prepare(`UPDATE compose_projects SET name=?, description=?, content=?, icon=?, updated_at=datetime('now') WHERE id=?`).run(
           args.name        !== undefined ? args.name        : p.name,
           args.description !== undefined ? args.description : p.description,
           args.content     !== undefined ? args.content     : p.content,
+          args.icon        !== undefined ? args.icon        : p.icon,
           args.id
         );
         return toolResult(db.prepare('SELECT * FROM compose_projects WHERE id = ?').get(args.id));
