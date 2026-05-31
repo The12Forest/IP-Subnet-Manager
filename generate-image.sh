@@ -150,6 +150,7 @@ IMAGE="${REGISTRY}/${GITHUB_USER_LOWER}/subnet-manager"
 # ── Build ─────────────────────────────────────────────────────────────────────
 echo "→ Building ${IMAGE}:${VERSION} (also tagging as latest)..."
 docker build \
+  --build-arg APP_VERSION="${VERSION}" \
   --tag "${IMAGE}:${VERSION}" \
   --tag "${IMAGE}:latest" \
   .

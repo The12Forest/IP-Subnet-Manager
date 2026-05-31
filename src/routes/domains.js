@@ -8,55 +8,55 @@ const requireRole = require('../middleware/admin');
 
 const router = express.Router();
 
-// ── Statements ────────────────────────────────────────────────────────────────
+// ── Domain statements ─────────────────────────────────────────────────────────
 const listDomains = db.prepare(`
-  SELECT d.id, d.name, d.description, d.display_subnet_id, d.created_at, d.updated_at,
-         s.name  AS display_subnet_name,
-         s.color AS display_subnet_color,
+  SELECT d.id, d.name, d.description, d.updated_at,
          COUNT(dr.id) AS record_count
   FROM domains d
-  LEFT JOIN subnets s        ON s.id  = d.display_subnet_id
   LEFT JOIN domain_records dr ON dr.domain_id = d.id
   GROUP BY d.id
-  ORDER BY s.display_order ASC, s.name ASC, d.name ASC
+  ORDER BY d.name ASC
 `);
 const getDomain    = db.prepare('SELECT * FROM domains WHERE id = ?');
 const insertDomain = db.prepare(`
-  INSERT INTO domains (name, description, display_subnet_id, created_at, updated_at)
-  VALUES (?, ?, ?, datetime('now'), datetime('now'))
+  INSERT INTO domains (name, description, created_at, updated_at)
+  VALUES (?, ?, datetime('now'), datetime('now'))
 `);
 const updateDomain = db.prepare(`
-  UPDATE domains SET name=?, description=?, display_subnet_id=?, updated_at=datetime('now') WHERE id=?
+  UPDATE domains SET name=?, description=?, updated_at=datetime('now') WHERE id=?
 `);
 const deleteDomain = db.prepare('DELETE FROM domains WHERE id = ?');
 
-const getRecords    = db.prepare(`
-  SELECT dr.id, dr.name, dr.record_type, dr.host_id, dr.value, dr.priority, dr.notes, dr.created_at,
-         h.ip AS host_ip, h.name AS host_name, h.last_status
+// ── Record statements ─────────────────────────────────────────────────────────
+const getRecords = db.prepare(`
+  SELECT dr.id, dr.domain_id, dr.name AS subdomain, dr.host_id, dr.compose_id, dr.notes, dr.created_at,
+         h.ip AS host_ip, h.name AS host_name, h.last_status,
+         cp.name AS compose_name
   FROM domain_records dr
-  LEFT JOIN hosts h ON h.id = dr.host_id
+  LEFT JOIN hosts             h  ON h.id  = dr.host_id
+  LEFT JOIN compose_projects  cp ON cp.id = dr.compose_id
   WHERE dr.domain_id = ?
-  ORDER BY dr.record_type ASC, dr.name ASC
+  ORDER BY dr.name ASC
 `);
 const getRecord    = db.prepare('SELECT * FROM domain_records WHERE id = ?');
 const insertRecord = db.prepare(`
-  INSERT INTO domain_records (domain_id, name, record_type, host_id, value, priority, notes, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  INSERT INTO domain_records (domain_id, name, record_type, host_id, compose_id, notes, created_at)
+  VALUES (?, ?, 'A', ?, ?, ?, datetime('now'))
 `);
 const updateRecord = db.prepare(`
-  UPDATE domain_records SET name=?, record_type=?, host_id=?, value=?, priority=?, notes=? WHERE id=?
+  UPDATE domain_records SET name=?, host_id=?, compose_id=?, notes=? WHERE id=?
 `);
 const deleteRecord = db.prepare('DELETE FROM domain_records WHERE id = ?');
 
-// ── Domain routes ─────────────────────────────────────────────────────────────
+// ── Routes ────────────────────────────────────────────────────────────────────
 
 router.get('/', requireAuth, (req, res) => res.json(listDomains.all()));
 
 router.post('/', requireAuth, requireRole('admin', 'editor'), (req, res) => {
-  const { name, description, display_subnet_id } = req.body || {};
+  const { name, description } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Domain name is required' });
   try {
-    const r = insertDomain.run(name.trim(), description || null, display_subnet_id || null);
+    const r = insertDomain.run(name.trim().toLowerCase(), description || null);
     const d = getDomain.get(r.lastInsertRowid);
     audit(req.user, 'create', 'domain', d.id, { after: { name: d.name } });
     res.status(201).json(d);
@@ -76,9 +76,9 @@ router.put('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   const id = parseInt(req.params.id, 10);
   const d  = getDomain.get(id);
   if (!d) return res.status(404).json({ error: 'Domain not found' });
-  const { name, description, display_subnet_id } = req.body || {};
+  const { name, description } = req.body || {};
   try {
-    updateDomain.run(name ? name.trim() : d.name, description !== undefined ? description : d.description, display_subnet_id !== undefined ? (display_subnet_id || null) : d.display_subnet_id, id);
+    updateDomain.run(name ? name.trim().toLowerCase() : d.name, description !== undefined ? description : d.description, id);
     audit(req.user, 'update', 'domain', id, { after: { name: name || d.name } });
     res.json(getDomain.get(id));
   } catch (err) {
@@ -101,25 +101,31 @@ router.delete('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) =>
 router.post('/:id/records', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   const domainId = parseInt(req.params.id, 10);
   if (!getDomain.get(domainId)) return res.status(404).json({ error: 'Domain not found' });
-  const { name = '@', record_type = 'A', host_id, value, priority, notes } = req.body || {};
-  const r = insertRecord.run(domainId, name.trim() || '@', record_type, host_id || null, value || null, priority || null, notes || null);
-  const record = getRecord.get(r.lastInsertRowid);
-  audit(req.user, 'create', 'domain_record', record.id, { domain: domainId, name, record_type });
-  res.status(201).json(record);
+  const { subdomain = '@', host_id, compose_id, notes } = req.body || {};
+  if (!host_id && !compose_id) return res.status(400).json({ error: 'Either host_id or compose_id is required' });
+  const r   = insertRecord.run(domainId, (subdomain.trim() || '@').toLowerCase(), host_id || null, compose_id || null, notes || null);
+  const rec = db.prepare(`
+    SELECT dr.id, dr.name AS subdomain, dr.host_id, dr.compose_id, dr.notes,
+           h.ip AS host_ip, h.name AS host_name, h.last_status,
+           cp.name AS compose_name
+    FROM domain_records dr
+    LEFT JOIN hosts h ON h.id = dr.host_id
+    LEFT JOIN compose_projects cp ON cp.id = dr.compose_id
+    WHERE dr.id = ?
+  `).get(r.lastInsertRowid);
+  res.status(201).json(rec);
 });
 
 router.put('/:id/records/:recordId', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   const recordId = parseInt(req.params.recordId, 10);
   const rec = getRecord.get(recordId);
   if (!rec || rec.domain_id !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Record not found' });
-  const { name, record_type, host_id, value, priority, notes } = req.body || {};
+  const { subdomain, host_id, compose_id, notes } = req.body || {};
   updateRecord.run(
-    name        !== undefined ? (name.trim() || '@')   : rec.name,
-    record_type || rec.record_type,
-    host_id     !== undefined ? (host_id || null)      : rec.host_id,
-    value       !== undefined ? (value || null)        : rec.value,
-    priority    !== undefined ? (priority || null)     : rec.priority,
-    notes       !== undefined ? (notes || null)        : rec.notes,
+    subdomain !== undefined ? ((subdomain.trim() || '@').toLowerCase()) : rec.name,
+    host_id    !== undefined ? (host_id    || null) : rec.host_id,
+    compose_id !== undefined ? (compose_id || null) : rec.compose_id,
+    notes      !== undefined ? (notes      || null) : rec.notes,
     recordId
   );
   res.json(getRecord.get(recordId));

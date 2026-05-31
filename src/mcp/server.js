@@ -484,34 +484,32 @@ const TOOLS = [
   },
   {
     name: 'add_domain',
-    description: 'Create a new domain',
+    description: 'Create a new second-level domain (e.g. example.com)',
     inputSchema: {
       type: 'object',
       properties: {
-        name:              { type: 'string', description: 'Primary domain name, e.g. example.com' },
-        description:       { type: 'string' },
-        display_subnet_id: { type: 'number', description: 'Subnet ID to group this domain under' },
+        name:        { type: 'string', description: 'Second-level domain, e.g. example.com' },
+        description: { type: 'string' },
       },
       required: ['name'],
     },
   },
   {
     name: 'update_domain',
-    description: 'Update a domain name, description, or network group',
+    description: 'Update a domain name or description',
     inputSchema: {
       type: 'object',
       properties: {
-        id:                { type: 'number' },
-        name:              { type: 'string' },
-        description:       { type: 'string' },
-        display_subnet_id: { type: 'number', description: 'Subnet ID to group this domain under, or null to ungroup' },
+        id:          { type: 'number' },
+        name:        { type: 'string' },
+        description: { type: 'string' },
       },
       required: ['id'],
     },
   },
   {
     name: 'remove_domain',
-    description: 'Delete a domain and all its DNS records',
+    description: 'Delete a domain and all its subdomains',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'number' } },
@@ -520,42 +518,38 @@ const TOOLS = [
   },
   {
     name: 'add_domain_record',
-    description: 'Add a DNS record to a domain. For A/AAAA records link a host; for CNAME/MX/TXT/NS provide a value string.',
+    description: 'Add a subdomain entry. Link it to either a host IP or a compose project (not both).',
     inputSchema: {
       type: 'object',
       properties: {
-        domain_id:   { type: 'number' },
-        name:        { type: 'string', description: 'Subdomain prefix or @ for root (e.g. "www", "api", "@")' },
-        record_type: { type: 'string', description: 'A | AAAA | CNAME | MX | TXT | NS | SRV | CAA' },
-        host_id:     { type: 'number', description: 'Link to an existing host IP (for A/AAAA records)' },
-        value:       { type: 'string', description: 'Record value for CNAME/MX/TXT/NS records' },
-        priority:    { type: 'number', description: 'Priority for MX/SRV records' },
-        notes:       { type: 'string' },
+        domain_id:  { type: 'number' },
+        subdomain:  { type: 'string', description: 'Third-level prefix: "www", "api", "@" for root' },
+        host_id:    { type: 'number', description: 'Link to a host IP (use list_hosts to find IDs)' },
+        compose_id: { type: 'number', description: 'Link to a compose project (use list_compose_projects)' },
+        notes:      { type: 'string' },
       },
-      required: ['domain_id', 'record_type'],
+      required: ['domain_id'],
     },
   },
   {
     name: 'update_domain_record',
-    description: 'Update an existing DNS record',
+    description: 'Update a subdomain entry',
     inputSchema: {
       type: 'object',
       properties: {
-        record_id:   { type: 'number' },
-        domain_id:   { type: 'number', description: 'Required to verify ownership' },
-        name:        { type: 'string' },
-        record_type: { type: 'string' },
-        host_id:     { type: 'number' },
-        value:       { type: 'string' },
-        priority:    { type: 'number' },
-        notes:       { type: 'string' },
+        record_id:  { type: 'number' },
+        domain_id:  { type: 'number', description: 'Required to verify ownership' },
+        subdomain:  { type: 'string' },
+        host_id:    { type: 'number' },
+        compose_id: { type: 'number' },
+        notes:      { type: 'string' },
       },
       required: ['record_id', 'domain_id'],
     },
   },
   {
     name: 'remove_domain_record',
-    description: 'Delete a DNS record',
+    description: 'Delete a subdomain entry',
     inputSchema: {
       type: 'object',
       properties: {
@@ -864,19 +858,21 @@ async function callTool(name, args) {
         const d = db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id);
         if (!d) return toolError(`Domain not found: ${args.id}`);
         const records = db.prepare(`
-          SELECT dr.id, dr.name, dr.record_type, dr.host_id, dr.value, dr.priority, dr.notes,
-                 h.ip AS host_ip, h.name AS host_name, h.last_status
-          FROM domain_records dr LEFT JOIN hosts h ON h.id = dr.host_id
-          WHERE dr.domain_id = ? ORDER BY dr.record_type, dr.name
+          SELECT dr.id, dr.name AS subdomain, dr.host_id, dr.compose_id, dr.notes,
+                 h.ip AS host_ip, h.name AS host_name, h.last_status,
+                 cp.name AS compose_name
+          FROM domain_records dr
+          LEFT JOIN hosts            h  ON h.id  = dr.host_id
+          LEFT JOIN compose_projects cp ON cp.id = dr.compose_id
+          WHERE dr.domain_id = ? ORDER BY dr.name
         `).all(args.id);
         return toolResult({ ...d, records });
       }
 
       case 'add_domain': {
-        const valid_types = new Set(['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA']);
         if (!args.name) return toolError('name is required');
         try {
-          const r = db.prepare(`INSERT INTO domains (name, description, display_subnet_id, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))`).run(args.name.trim(), args.description || null, args.display_subnet_id || null);
+          const r = db.prepare(`INSERT INTO domains (name, description, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))`).run(args.name.trim().toLowerCase(), args.description || null);
           return toolResult(db.prepare('SELECT * FROM domains WHERE id = ?').get(r.lastInsertRowid));
         } catch (err) {
           if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`Domain already exists: ${args.name}`);
@@ -888,14 +884,13 @@ async function callTool(name, args) {
         const d = db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id);
         if (!d) return toolError(`Domain not found: ${args.id}`);
         try {
-          db.prepare(`UPDATE domains SET name=?, description=?, display_subnet_id=?, updated_at=datetime('now') WHERE id=?`).run(
-            args.name              !== undefined ? args.name.trim()            : d.name,
-            args.description       !== undefined ? args.description            : d.description,
-            args.display_subnet_id !== undefined ? (args.display_subnet_id || null) : d.display_subnet_id,
+          db.prepare(`UPDATE domains SET name=?, description=?, updated_at=datetime('now') WHERE id=?`).run(
+            args.name        !== undefined ? args.name.trim().toLowerCase() : d.name,
+            args.description !== undefined ? args.description               : d.description,
             args.id
           );
         } catch (err) {
-          if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`Domain name already exists: ${args.name}`);
+          if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return toolError(`Domain already exists: ${args.name}`);
           throw err;
         }
         return toolResult(db.prepare('SELECT * FROM domains WHERE id = ?').get(args.id));
@@ -911,12 +906,10 @@ async function callTool(name, args) {
       case 'add_domain_record': {
         const d = db.prepare('SELECT id FROM domains WHERE id = ?').get(args.domain_id);
         if (!d) return toolError(`Domain not found: ${args.domain_id}`);
-        const allowedTypes = new Set(['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA']);
-        const type = (args.record_type || 'A').toUpperCase();
-        if (!allowedTypes.has(type)) return toolError(`Invalid record type: ${args.record_type}`);
-        const r = db.prepare(`INSERT INTO domain_records (domain_id, name, record_type, host_id, value, priority, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
-          args.domain_id, (args.name || '@').trim(), type,
-          args.host_id || null, args.value || null, args.priority || null, args.notes || null
+        if (!args.host_id && !args.compose_id) return toolError('Either host_id or compose_id is required');
+        const sub = ((args.subdomain || '@').trim() || '@').toLowerCase();
+        const r = db.prepare(`INSERT INTO domain_records (domain_id, name, record_type, host_id, compose_id, notes, created_at) VALUES (?, ?, 'A', ?, ?, ?, datetime('now'))`).run(
+          args.domain_id, sub, args.host_id || null, args.compose_id || null, args.notes || null
         );
         return toolResult(db.prepare('SELECT * FROM domain_records WHERE id = ?').get(r.lastInsertRowid));
       }
@@ -924,13 +917,11 @@ async function callTool(name, args) {
       case 'update_domain_record': {
         const rec = db.prepare('SELECT * FROM domain_records WHERE id = ?').get(args.record_id);
         if (!rec || rec.domain_id !== args.domain_id) return toolError(`Record not found: ${args.record_id}`);
-        db.prepare('UPDATE domain_records SET name=?, record_type=?, host_id=?, value=?, priority=?, notes=? WHERE id=?').run(
-          args.name        !== undefined ? (args.name.trim() || '@')       : rec.name,
-          args.record_type !== undefined ? args.record_type.toUpperCase()  : rec.record_type,
-          args.host_id     !== undefined ? (args.host_id || null)          : rec.host_id,
-          args.value       !== undefined ? (args.value || null)            : rec.value,
-          args.priority    !== undefined ? (args.priority || null)         : rec.priority,
-          args.notes       !== undefined ? (args.notes || null)            : rec.notes,
+        db.prepare('UPDATE domain_records SET name=?, host_id=?, compose_id=?, notes=? WHERE id=?').run(
+          args.subdomain   !== undefined ? ((args.subdomain.trim() || '@').toLowerCase()) : rec.name,
+          args.host_id     !== undefined ? (args.host_id    || null) : rec.host_id,
+          args.compose_id  !== undefined ? (args.compose_id || null) : rec.compose_id,
+          args.notes       !== undefined ? (args.notes      || null) : rec.notes,
           args.record_id
         );
         return toolResult(db.prepare('SELECT * FROM domain_records WHERE id = ?').get(args.record_id));
