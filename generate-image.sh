@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+sudo git pull
+
 REGISTRY="ghcr.io"
 
 # ── Check if already logged in to ghcr.io ────────────────────────────────────
